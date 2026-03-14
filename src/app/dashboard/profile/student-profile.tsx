@@ -430,8 +430,49 @@ export function StudentProfile() {
                     <FormField name="dateOfBirth" control={form.control} render={({ field }) => (<FormItem><FormLabel>Date of Birth</FormLabel><FormControl><Input placeholder="e.g., 04/07/1999" {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField name="placeOfBirth" control={form.control} render={({ field }) => (<FormItem><FormLabel>Place of Birth</FormLabel><FormControl><Input placeholder="e.g., Islamabad, Pakistan" {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField name="nationality" control={form.control} render={({ field }) => (<FormItem><FormLabel>Nationality</FormLabel><FormControl><Input placeholder="e.g., Pakistani" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField name="gender" control={form.control} render={({ field }) => (<FormItem><FormLabel>Gender</FormLabel><FormControl><Input placeholder="e.g., Male" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField name="maritalStatus" control={form.control} render={({ field }) => (<FormItem><FormLabel>Marital Status</FormLabel><FormControl><Input placeholder="e.g., Single" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField
+                      name="gender"
+                      control={form.control}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Gender</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select gender" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="Male">Male</SelectItem>
+                              <SelectItem value="Female">Female</SelectItem>
+                              <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      name="maritalStatus"
+                      control={form.control}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Marital Status</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select marital status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="Single">Single</SelectItem>
+                              <SelectItem value="Married">Married</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <FormField name="hobbies" control={form.control} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Hobbies</FormLabel><FormControl><Input placeholder="e.g., Swimming, Reading, Coding" {...field} /></FormControl><FormMessage /></FormItem>)} />
                   </div>
                 </div>
