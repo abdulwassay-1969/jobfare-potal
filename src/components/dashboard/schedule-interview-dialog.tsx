@@ -58,7 +58,7 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
   const [loading, setLoading] = useState(false);
   const [companyName, setCompanyName] = useState('');
   const [isCompanyDataLoading, setIsCompanyDataLoading] = useState(true);
-  const [teamMemberIds, setTeamMemberIds] = useState<string[]>([student.id]);
+    const [teamMemberIds, setTeamMemberIds] = useState<string[]>(student.id ? [student.id] : []);
 
   const jobFairId = "main-job-fair-2024"; 
 
@@ -75,7 +75,8 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
   const selectedAmPm = form.watch('ampm');
 
     const safeTeamMemberIds = useMemo(() => {
-        const normalized = teamMemberIds.filter((id): id is string => Boolean(id));
+        const sourceIds = Array.isArray(teamMemberIds) ? teamMemberIds : [];
+        const normalized = sourceIds.filter((id): id is string => typeof id === 'string' && Boolean(id));
         return Array.from(new Set(normalized)).slice(0, 10);
     }, [teamMemberIds]);
 
@@ -138,7 +139,16 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
             if (student.projectId) {
                 const projectSnap = await getDoc(doc(firestore, 'projects', student.projectId));
                 if (projectSnap.exists()) {
-                    setTeamMemberIds((projectSnap.data() as Project).teamMemberIds);
+                    const fetchedTeamIds = (projectSnap.data() as Project).teamMemberIds;
+                    if (Array.isArray(fetchedTeamIds) && fetchedTeamIds.length > 0) {
+                        setTeamMemberIds(
+                          fetchedTeamIds.filter((id): id is string => typeof id === 'string' && Boolean(id))
+                        );
+                    } else if (student.id) {
+                        setTeamMemberIds([student.id]);
+                    } else {
+                        setTeamMemberIds([]);
+                    }
                 }
             }
 
