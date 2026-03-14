@@ -455,7 +455,28 @@ export function StudentProfile() {
                       <Card key={field.id} className="p-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField name={`skills.${index}.name`} control={form.control} render={({ field }) => <FormItem><FormLabel>Skill</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-                          <FormField name={`skills.${index}.level`} control={form.control} render={({ field }) => <FormItem><FormLabel>Proficiency</FormLabel><FormControl><Input placeholder="e.g., Good, Very Good, Excellent" {...field} /></FormControl><FormMessage /></FormItem>} />
+                          <FormField
+                            name={`skills.${index}.level`}
+                            control={form.control}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Proficiency</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select proficiency" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="Good">Good</SelectItem>
+                                    <SelectItem value="Very Good">Very Good</SelectItem>
+                                    <SelectItem value="Excellent">Excellent</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </div>
                         <Button type="button" variant="ghost" size="sm" onClick={() => removeSkill(index)} className="mt-2 text-destructive hover:text-destructive"><Trash2 className="mr-2" /> Remove Skill</Button>
                       </Card>
