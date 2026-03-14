@@ -1,0 +1,117 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --------------------------------------------------------------------------------
+    // Helper Functions
+    // --------------------------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      // Unified Main Admin authority check (admin@example.com)
+      return isSignedIn() && request.auth.token.email == 'admin@example.com';
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    // --------------------------------------------------------------------------------
+    // Global Admin Override (CRITICAL: MUST BE AT TOP)
+    // --------------------------------------------------------------------------------
+    
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // --------------------------------------------------------------------------------
+    // Collection Group Rules (REQUIRED for Global Attendance Tracking)
+    // --------------------------------------------------------------------------------
+    
+    match /{path=**}/volunteerShifts/{shiftId} {
+      allow read: if isSignedIn();
+    }
+
+    match /{path=**}/projectSpotAssignments/{assignmentId} {
+      allow read: if isSignedIn();
+      // Write/Update handled by isAdmin() override above or specific owner rules
+    }
+
+    // --------------------------------------------------------------------------------
+    // Role-Specific Collection Rules
+    // --------------------------------------------------------------------------------
+
+    match /eventState/status {
+      allow read: if isSignedIn();
+    }
+
+    match /userProfiles/{userProfileId} {
+      allow get: if isSignedIn();
+      allow create: if isOwner(userProfileId);
+      allow update: if isExistingOwner(userProfileId);
+    }
+
+    match /students/{studentId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(studentId);
+      allow update: if isExistingOwner(studentId);
+    }
+
+    match /companies/{companyId} {
+      allow get: if isSignedIn(); 
+      allow list: if isSignedIn();
+      allow create: if isOwner(companyId);
+      allow update: if isExistingOwner(companyId);
+    }
+
+    match /companies/{companyId}/shortlistedStudents/{studentId} {
+        allow read, write: if isOwner(companyId);
+    }
+
+    match /volunteers/{volunteerId} {
+      allow get: if isOwner(volunteerId);
+      allow create: if isOwner(volunteerId);
+      allow update: if isExistingOwner(volunteerId);
+    }
+
+    match /projects/{projectId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (request.auth.uid in resource.data.teamMemberIds);
+    }
+
+    match /jobFairs/{jobFairId} {
+      allow get, list: if isSignedIn();
+    }
+
+    match /jobFairs/{jobFairId}/roomAssignments/{roomAssignmentId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+    }
+
+    match /jobFairs/{jobFairId}/projectSpotAssignments/{assignmentId} {
+      allow read: if isSignedIn();
+      // Allow student to confirm presence at their own spot
+      allow update: if isOwner(assignmentId);
+    }
+
+    match /interviews/{interviewId} {
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.studentId || request.auth.uid == resource.data.companyId);
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (request.auth.uid == resource.data.companyId || request.auth.uid == resource.data.studentId);
+    }
+
+    match /userProfiles/{userProfileId}/notifications/{notificationId} {
+      allow read, update, delete: if isOwner(userProfileId);
+      allow create: if isSignedIn();
+    }
+  }
+}

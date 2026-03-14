@@ -1,0 +1,554 @@
+
+{
+  "entities": {
+    "EventState": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "EventState",
+      "type": "object",
+      "description": "Global state for the event, such as break status and targeted messages.",
+      "properties": {
+        "isBreakActive": {
+          "type": "boolean"
+        },
+        "messages": {
+          "type": "object",
+          "properties": {
+            "company": { "type": "string" },
+            "student": { "type": "string" },
+            "volunteer": { "type": "string" }
+          }
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "Project": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Project",
+      "type": "object",
+      "description": "Represents a student project, which can have multiple team members.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Project."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the project."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the project."
+        },
+        "teamMemberIds": {
+          "type": "array",
+          "description": "List of student UIDs who are members of this project.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "jobFairId": {
+          "type": "string",
+          "description": "Reference to the JobFair this project is part of."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "teamMemberIds",
+        "jobFairId",
+        "createdAt"
+      ]
+    },
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a general user profile in the system, primarily for linking authentication to specific role-based profiles.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user.",
+          "format": "email"
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the user."
+        },
+        "roles": {
+          "type": "array",
+          "description": "List of roles assigned to the user (e.g., 'student', 'company', 'admin').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "name",
+        "roles",
+        "createdAt"
+      ]
+    },
+    "Student": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Student",
+      "type": "object",
+      "description": "Represents a student registered in the system, including academic and career-related details.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Student entity, matches userProfileId."
+        },
+        "userProfileId": {
+          "type": "string",
+          "description": "Reference to the associated UserProfile."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the student."
+        },
+        "title": {
+          "type": "string",
+          "description": "Professional title of the student (e.g., 'Software Engineer')."
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "phoneNumber": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        },
+        "registrationNumber": {
+          "type": "string",
+          "description": "Student's university registration number."
+        },
+        "department": {
+          "type": "string",
+          "description": "Academic department of the student."
+        },
+        "semester": {
+          "type": "string",
+          "description": "Current semester of the student."
+        },
+        "cgpa": {
+          "type": "number",
+          "description": "Cumulative Grade Point Average of the student."
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Reference to the project this student is a part of."
+        },
+        "projectName": {
+          "type": "string",
+          "description": "Denormalized name of the project for display purposes."
+        },
+        "summary": {
+          "type": "string",
+          "description": "A professional summary or project description."
+        },
+        "skills": {
+          "type": "array",
+          "description": "List of skills possessed by the student.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "level": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "education": {
+          "type": "array",
+          "description": "List of educational qualifications.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "institution": {
+                "type": "string"
+              },
+              "degree": {
+                "type": "string"
+              },
+              "field": {
+                "type": "string"
+              },
+              "startDate": {
+                "type": "string"
+              },
+              "endDate": {
+                "type": "string"
+              },
+              "cgpa": {
+                "type": "number"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "experience": {
+          "type": "array",
+          "description": "List of work experience.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "company": {
+                "type": "string"
+              },
+              "startDate": {
+                "type": "string"
+              },
+              "endDate": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "languages": {
+          "type": "array",
+          "description": "Languages spoken by the student.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "language": {
+                "type": "string"
+              },
+              "proficiency": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "hobbies": {
+          "type": "string"
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "format": "date"
+        },
+        "placeOfBirth": {
+          "type": "string"
+        },
+        "nationality": {
+          "type": "string"
+        },
+        "gender": {
+          "type": "string"
+        },
+        "maritalStatus": {
+          "type": "string"
+        },
+        "githubUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "linkedinUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "eligibilityApproved": {
+          "type": "boolean",
+          "description": "Flag indicating if the student's eligibility has been approved by a faculty coordinator."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userProfileId",
+        "fullName",
+        "registrationNumber",
+        "department",
+        "semester",
+        "eligibilityApproved",
+        "createdAt"
+      ]
+    },
+    "ShortlistedStudent": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ShortlistedStudent",
+      "type": "object",
+      "description": "Represents a student that a company has shortlisted.",
+      "properties": {
+        "studentId": {
+          "type": "string",
+          "description": "The ID of the shortlisted student."
+        },
+        "studentName": {
+            "type": "string",
+            "description": "Denormalized name of the student for display purposes."
+        },
+        "studentDept": {
+            "type": "string",
+            "description": "Denormalized department of the student."
+        },
+        "studentSkills": {
+            "type": "array",
+            "description": "Denormalized list of student skills.",
+            "items": { "type": "string" }
+        },
+        "addedAt": {
+          "type": "string",
+          "description": "Timestamp when the student was shortlisted.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "studentId",
+        "addedAt"
+      ]
+    },
+    "Company": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Company",
+      "type": "object",
+      "description": "Represents a company or recruiter participating in job fairs.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Company entity."
+        },
+        "userProfileId": {
+          "type": "string",
+          "description": "Reference to the associated UserProfile of the primary contact."
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Official name of the company."
+        },
+        "industry": {
+          "type": "string",
+          "description": "Industry sector of the company."
+        },
+        "website": {
+          "type": "string",
+          "description": "Company's official website URL.",
+          "format": "uri"
+        },
+        "description": {
+          "type": "string",
+          "description": "Brief description of the company."
+        },
+        "logoUrl": {
+          "type": "string",
+          "description": "URL to the company's logo image.",
+          "format": "uri"
+        },
+        "hrName": {
+          "type": "string",
+          "description": "Name of the primary contact person at the company."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email of the primary contact person.",
+          "format": "email"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "Phone number of the primary contact person."
+        },
+        "representatives": {
+            "type": "number",
+            "description": "Number of company representatives attending."
+        },
+        "hiringFor": {
+            "type": "string",
+            "enum": ["Internship", "Job", "Both"]
+        },
+        "needsInterviewRoom": {
+            "type": "boolean"
+        },
+        "equipmentRequirements": {
+            "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the company profile was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the company profile was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userProfileId",
+        "companyName",
+        "industry",
+        "hrName",
+        "email",
+        "createdAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous",
+      "google.com"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/eventState/status",
+        "definition": {
+          "entityName": "EventState",
+          "schema": {
+            "$ref": "#/backend/entities/EventState"
+          },
+          "description": "Global status of the job fair (e.g., break active and targeted messages)."
+        }
+      },
+      {
+        "path": "/projects/{projectId}",
+        "definition": {
+          "entityName": "Project",
+          "schema": {
+            "$ref": "#/backend/entities/Project"
+          },
+          "description": "Stores student project details. Can be edited by any student in the project team."
+        }
+      },
+      {
+        "path": "/userProfiles/{userProfileId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores core user profile information linked to Firebase Auth UID."
+        }
+      },
+      {
+        "path": "/admins/{adminId}",
+        "definition": {
+          "entityName": "Admin",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Collection for high-privilege Admin role. Document ID 'adminId' is the 'userProfileId'."
+        }
+      },
+      {
+        "path": "/facultyCoordinators/{facultyCoordinatorId}",
+        "definition": {
+          "entityName": "FacultyCoordinator",
+          "schema": {
+            "$ref": "#/backend/entities/FacultyCoordinator"
+          },
+          "description": "Collection for FacultyCoordinator role."
+        }
+      },
+      {
+        "path": "/students/{studentId}",
+        "definition": {
+          "entityName": "Student",
+          "schema": {
+            "$ref": "#/backend/entities/Student"
+          },
+          "description": "Stores detailed student profiles."
+        }
+      },
+      {
+        "path": "/companies/{companyId}",
+        "definition": {
+          "entityName": "Company",
+          "schema": {
+            "$ref": "#/backend/entities/Company"
+          },
+          "description": "Stores company and recruiter profiles."
+        }
+      },
+      {
+        "path": "/companies/{companyId}/shortlistedStudents/{studentId}",
+        "definition": {
+          "entityName": "ShortlistedStudent",
+          "schema": {
+            "$ref": "#/backend/entities/ShortlistedStudent"
+          },
+          "description": "A list of students a company has shortlisted."
+        }
+      },
+      {
+        "path": "/volunteers/{volunteerId}",
+        "definition": {
+          "entityName": "Volunteer",
+          "schema": {
+            "$ref": "#/backend/entities/Volunteer"
+          },
+          "description": "Stores volunteer profiles."
+        }
+      },
+      {
+        "path": "/jobFairs/{jobFairId}",
+        "definition": {
+          "entityName": "JobFair",
+          "schema": {
+            "$ref": "#/backend/entities/JobFair"
+          },
+          "description": "Main collection for job fair events."
+        }
+      },
+      {
+        "path": "/jobFairs/{jobFairId}/roomAssignments/{roomAssignmentId}",
+        "definition": {
+          "entityName": "RoomAssignment",
+          "schema": {
+            "$ref": "#/backend/entities/RoomAssignment"
+          },
+          "description": "Room assignments for companies at a job fair."
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure has been updated to support targeted break messaging for Students, Volunteers, and Companies."
+  }
+}
