@@ -199,7 +199,7 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
   }, [selectedDate, selectedHour, selectedMinute, selectedAmPm, studentInterviews, companyInterviews]);
 
   const onSubmit = async (data: InterviewFormValues) => {
-    if (!user || !firestore || !companyName) return;
+        if (!user || !firestore) return;
     if (conflicts?.student || conflicts?.company) {
         toast({ title: "Conflict Detected", description: "This slot is no longer available.", variant: "destructive" });
         return;
@@ -208,6 +208,7 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
     setLoading(true);
 
     try {
+        const effectiveCompanyName = companyName || user.displayName || 'Company';
         const interviewDateTime = new Date(data.date);
         let hours = parseInt(data.hour, 10);
         const minutes = parseInt(data.minute, 10);
@@ -219,7 +220,7 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
           studentId: student.id,
           studentName: student.fullName,
           companyId: user.uid,
-          companyName: companyName,
+          companyName: effectiveCompanyName,
           jobFairId: jobFairId,
           interviewerName: data.interviewerName,
           startTime: Timestamp.fromDate(interviewDateTime),
@@ -231,17 +232,21 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
 
         await addDoc(collection(firestore, 'interviews'), interviewData);
 
-        // Notify parties
-        await addDoc(collection(firestore, 'userProfiles', student.id, 'notifications'), {
-            recipientUserProfileId: student.id,
-            title: `New Interview Invitation`,
-            message: `${companyName} has invited you to an interview on ${format(interviewDateTime, 'PPP')} at ${format(interviewDateTime, 'p')}.`,
-            type: 'interview_invitation',
-            targetUrl: '/dashboard/interviews',
-            isRead: false,
-            sentAt: serverTimestamp(),
-            createdAt: serverTimestamp()
-        });
+                // Notify student (non-blocking)
+                try {
+                    await addDoc(collection(firestore, 'userProfiles', student.id, 'notifications'), {
+                            recipientUserProfileId: student.id,
+                            title: `New Interview Invitation`,
+                            message: `${effectiveCompanyName} has invited you to an interview on ${format(interviewDateTime, 'PPP')} at ${format(interviewDateTime, 'p')}.`,
+                            type: 'interview_invitation',
+                            targetUrl: '/dashboard/interviews',
+                            isRead: false,
+                            sentAt: serverTimestamp(),
+                            createdAt: serverTimestamp()
+                    });
+                } catch (notificationError) {
+                    console.warn('Interview created but notification could not be written:', notificationError);
+                }
 
         toast({ title: 'Interview Scheduled!', description: `Interview set with ${student.fullName}.` });
         onOpenChange(false);
