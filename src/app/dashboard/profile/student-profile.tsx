@@ -484,7 +484,30 @@ export function StudentProfile() {
                     <FormField control={form.control} name="registrationNumber" render={({ field }) => (<FormItem><FormLabel>Registration Number</FormLabel><FormControl><Input {...field} disabled/></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="department" render={({ field }) => (<FormItem><FormLabel>Department</FormLabel><FormControl><Input {...field} disabled /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="semester" render={({ field }) => (<FormItem><FormLabel>Semester</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="cgpa" render={({ field }) => (<FormItem><FormLabel>Current CGPA</FormLabel><FormControl><Input type="text" inputMode="decimal" placeholder="e.g., 3.5" {...field} value={ Number.isNaN(field.value) ? '' : field.value ?? '' } onChange={(e) => { const value = e.target.value; field.onChange(value === '' ? undefined : parseFloat(value)); }} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField
+                      control={form.control}
+                      name="cgpa"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Current CGPA</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="e.g., 3.5"
+                              value={field.value?.toString() ?? ''}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (/^\d*(\.\d*)?$/.test(value)) {
+                                  field.onChange(value);
+                                }
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                 </div>
 
 
