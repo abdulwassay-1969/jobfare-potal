@@ -160,7 +160,12 @@ export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | 
   const memoized = useMemo(factory, deps);
   
   if(typeof memoized !== 'object' || memoized === null) return memoized;
-  (memoized as MemoFirebase<T>).__memo = true;
+  try {
+    (memoized as MemoFirebase<T>).__memo = true;
+  } catch {
+    // Some external library objects may be non-extensible in production builds.
+    // We keep this best-effort marker non-fatal to avoid crashing the app.
+  }
   
   return memoized;
 }
