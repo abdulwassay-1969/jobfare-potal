@@ -472,7 +472,28 @@ export function StudentProfile() {
                       <Card key={field.id} className="p-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <FormField name={`languages.${index}.language`} control={form.control} render={({ field }) => <FormItem><FormLabel>Language</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
-                          <FormField name={`languages.${index}.proficiency`} control={form.control} render={({ field }) => <FormItem><FormLabel>Proficiency</FormLabel><FormControl><Input placeholder="e.g., Fluent, Good, Basic" {...field} /></FormControl><FormMessage /></FormItem>} />
+                          <FormField
+                            name={`languages.${index}.proficiency`}
+                            control={form.control}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Proficiency</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select proficiency" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="Fluent">Fluent</SelectItem>
+                                    <SelectItem value="Good">Good</SelectItem>
+                                    <SelectItem value="Basic">Basic</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </div>
                         <Button type="button" variant="ghost" size="sm" onClick={() => removeLang(index)} className="mt-2 text-destructive hover:text-destructive"><Trash2 className="mr-2" /> Remove Language</Button>
                       </Card>
