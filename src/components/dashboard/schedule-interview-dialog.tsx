@@ -74,13 +74,27 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
   const selectedMinute = form.watch('minute');
   const selectedAmPm = form.watch('ampm');
 
+    const safeTeamMemberIds = useMemo(() => {
+        const normalized = teamMemberIds.filter((id): id is string => Boolean(id));
+        return Array.from(new Set(normalized)).slice(0, 10);
+    }, [teamMemberIds]);
+
+    const getInterviewDate = (value: unknown): Date | null => {
+        if (!value) return null;
+        if (typeof value === 'object' && value !== null && 'toDate' in value && typeof (value as any).toDate === 'function') {
+            return (value as any).toDate();
+        }
+        if (value instanceof Date) return value;
+        return null;
+    };
+
   // --- Availability Data Fetching ---
   
   // 1. Get all interviews for this student (or their team)
   const studentInterviewsQuery = useMemoFirebase(() => {
-    if (!firestore || !open) return null;
-    return query(collection(firestore, 'interviews'), where('studentId', 'in', teamMemberIds));
-  }, [firestore, open, teamMemberIds]);
+        if (!firestore || !open || safeTeamMemberIds.length === 0) return null;
+        return query(collection(firestore, 'interviews'), where('studentId', 'in', safeTeamMemberIds));
+    }, [firestore, open, safeTeamMemberIds]);
 
   // 2. Get all interviews for this company
   const companyInterviewsQuery = useMemoFirebase(() => {
@@ -155,8 +169,9 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
     const proposedEnd = new Date(proposedStart.getTime() + 30 * 60000);
 
     const checkOverlap = (existing: Interview) => {
-        const start = existing.startTime.toDate();
-        const end = existing.endTime.toDate();
+        const start = getInterviewDate(existing.startTime);
+        const end = getInterviewDate(existing.endTime);
+        if (!start || !end) return false;
         return (proposedStart < end && proposedEnd > start) && existing.status !== 'Canceled';
     };
 
@@ -230,8 +245,15 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
   };
 
   const studentDayInterviews = useMemo(() => {
-      return studentInterviews?.filter(i => isSameDay(i.startTime.toDate(), selectedDate))
-        .sort((a, b) => a.startTime.seconds - b.startTime.seconds) || [];
+            return studentInterviews?.filter(i => {
+                const start = getInterviewDate(i.startTime);
+                return start ? isSameDay(start, selectedDate) : false;
+            })
+                .sort((a, b) => {
+                    const aTime = getInterviewDate(a.startTime)?.getTime() ?? 0;
+                    const bTime = getInterviewDate(b.startTime)?.getTime() ?? 0;
+                    return aTime - bTime;
+                }) || [];
   }, [studentInterviews, selectedDate]);
 
   return (
@@ -350,12 +372,15 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
                 </Form>
 
                 <div className="border-l pl-6 space-y-4">
-                    <h4 className="text-sm font-semibold flex items-center gap-2"><Clock className="h-4 w-4" /> Student Schedule ({format(selectedDate, 'MMM d')})</h4>
+                    <h4 className="text-sm font-semibold flex items-center gap-2"><Clock className="h-4 w-4" /> Student Schedule ({selectedDate ? format(selectedDate, 'MMM d') : 'N/A'})</h4>
                     <div className="space-y-2">
                         {studentDayInterviews.length > 0 ? (
                             studentDayInterviews.map((interview) => (
                                 <div key={interview.id} className="flex items-center justify-between text-xs p-2 rounded bg-muted/50 border">
-                                    <span className="font-medium">{format(interview.startTime.toDate(), 'p')}</span>
+                                    <span className="font-medium">{(() => {
+                                      const start = getInterviewDate(interview.startTime);
+                                      return start ? format(start, 'p') : 'Invalid time';
+                                    })()}</span>
                                     <Badge variant="secondary" className="text-[10px]">Booked</Badge>
                                 </div>
                             ))

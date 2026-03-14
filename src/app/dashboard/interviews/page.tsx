@@ -54,6 +54,15 @@ export default function InterviewsPage() {
 
   const isLoading = authLoading || interviewsLoading;
 
+  const getInterviewDate = (value: unknown): Date | null => {
+    if (!value) return null;
+    if (typeof value === 'object' && value !== null && 'toDate' in value && typeof (value as any).toDate === 'function') {
+      return (value as any).toDate();
+    }
+    if (value instanceof Date) return value;
+    return null;
+  };
+
   const handleStatusUpdate = async (interviewId: string, status: Interview['status']) => {
     if (!db) return;
     const interviewRef = doc(db, 'interviews', interviewId);
@@ -80,6 +89,22 @@ export default function InterviewsPage() {
   };
 
   const InterviewCard = ({ interview }: { interview: Interview }) => (
+     (() => {
+      const startDate = getInterviewDate(interview.startTime);
+      const timeLabel = startDate
+        ? startDate.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : 'Invalid time';
+      const dateLabel = startDate
+        ? startDate.toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+          })
+        : 'Invalid date';
+
+      return (
      <Card key={interview.id} className="overflow-hidden">
         <CardContent className="p-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
             <div className="md:col-span-2 space-y-1">
@@ -95,17 +120,11 @@ export default function InterviewsPage() {
             <div className="space-y-1">
                 <p className="flex items-center gap-2 text-sm">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                {interview.startTime.toDate().toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                })}
+                {timeLabel}
                 </p>
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-4 w-4" />
-                {interview.startTime.toDate().toLocaleDateString('en-US', {
-                    month: 'long',
-                    day: 'numeric',
-                })}
+                {dateLabel}
                 </p>
             </div>
 
@@ -144,6 +163,8 @@ export default function InterviewsPage() {
             </div>
         </CardContent>
     </Card>
+      );
+    })()
   );
 
 
