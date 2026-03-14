@@ -253,6 +253,11 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
           requestResourceData: { studentId: student.id, companyId: user.uid },
         });
         errorEmitter.emit('permission-error', permissionError);
+                toast({
+                    title: 'Could not schedule interview',
+                    description: 'Please check your permissions or required fields and try again.',
+                    variant: 'destructive',
+                });
     } finally {
         setLoading(false);
     }
