@@ -23,10 +23,20 @@ import Link from 'next/link';
 const ProjectTeamMembers = ({ teamMemberIds }: { teamMemberIds: string[] }) => {
     const db = useFirestore();
 
+    const safeTeamMemberIds = React.useMemo(() => {
+        return Array.from(
+            new Set((teamMemberIds || []).filter((id): id is string => Boolean(id) && !id.includes('/')))
+        ).slice(0, 10);
+    }, [teamMemberIds]);
+
     const membersQuery = useMemoFirebase(() => {
-        if (!db || teamMemberIds.length === 0) return null;
-        return query(collection(db, 'students'), where(documentId(), 'in', teamMemberIds));
-    }, [db, teamMemberIds]);
+        if (!db || safeTeamMemberIds.length === 0) return null;
+        try {
+            return query(collection(db, 'students'), where(documentId(), 'in', safeTeamMemberIds));
+        } catch {
+            return null;
+        }
+    }, [db, safeTeamMemberIds]);
 
     const { data: members, isLoading } = useCollection<Student>(membersQuery);
 
@@ -78,12 +88,22 @@ export default function ProjectsPage() {
     // This is a simplification. In a real app, you'd want a better way
     // to pick which student to schedule with from a project.
     // Here we just make the first member schedulable.
-    const { data: studentToSchedule, isLoading: studentLoading } = useCollection<Student>(
-        useMemoFirebase(() => {
-            if (!db || !project.teamMemberIds?.[0]) return null;
-            return query(collection(db, 'students'), where(documentId(), '==', project.teamMemberIds[0]));
-        }, [db, project.teamMemberIds])
-    );
+    const primaryMemberId = React.useMemo(() => {
+        const firstId = project.teamMemberIds?.[0];
+        if (!firstId || firstId.includes('/')) return null;
+        return firstId;
+    }, [project.teamMemberIds]);
+
+    const studentToScheduleQuery = useMemoFirebase(() => {
+        if (!db || !primaryMemberId) return null;
+        try {
+            return query(collection(db, 'students'), where(documentId(), '==', primaryMemberId));
+        } catch {
+            return null;
+        }
+    }, [db, primaryMemberId]);
+
+    const { data: studentToSchedule, isLoading: studentLoading } = useCollection<Student>(studentToScheduleQuery);
     
     return (
         <Card className="flex flex-col">

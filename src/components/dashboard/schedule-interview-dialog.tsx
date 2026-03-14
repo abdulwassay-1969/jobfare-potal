@@ -93,7 +93,11 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
   // 1. Get all interviews for this student (or their team)
   const studentInterviewsQuery = useMemoFirebase(() => {
         if (!firestore || !open || safeTeamMemberIds.length === 0) return null;
-        return query(collection(firestore, 'interviews'), where('studentId', 'in', safeTeamMemberIds));
+        try {
+            return query(collection(firestore, 'interviews'), where('studentId', 'in', safeTeamMemberIds));
+        } catch {
+            return null;
+        }
     }, [firestore, open, safeTeamMemberIds]);
 
   // 2. Get all interviews for this company
