@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Camera, CameraOff, UserCheck, QrCode, MapPin, LayoutGrid, ArrowLeft } from 'lucide-react';
+import { Camera, CameraOff, UserCheck, QrCode, MapPin, LayoutGrid, ArrowLeft, Upload } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -12,11 +12,7 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import Link from 'next/link';
 
-type Html5QrcodeInstance = {
-  isScanning: boolean;
-  start: (...args: any[]) => Promise<unknown>;
-  stop: () => Promise<unknown>;
-};
+type JsQrDecoder = typeof import('jsqr').default;
 
 interface ScannedVolunteerData {
   type: 'volunteer';
@@ -41,7 +37,11 @@ type ScannedData = ScannedVolunteerData | ScannedStudentData;
 
 export default function AdminScannerPage() {
   const scannerRegionRef = useRef<HTMLDivElement>(null);
-  const html5QrCodeRef = useRef<Html5QrcodeInstance | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const jsQrDecoderRef = useRef<JsQrDecoder | null>(null);
   const [scannedData, setScannedData] = useState<ScannedData | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -52,118 +52,244 @@ export default function AdminScannerPage() {
 
   useEffect(() => {
     return () => {
-      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        html5QrCodeRef.current.stop().catch(err => console.error("Failed to stop scanner", err));
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+      }
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
   }, []);
 
-  const loadQrLibrary = async () => {
-    const module = await import('html5-qrcode');
-    return module.Html5Qrcode;
+  const loadQrDecoder = async () => {
+    if (!jsQrDecoderRef.current) {
+      const module = await import('jsqr');
+      jsQrDecoderRef.current = module.default;
+    }
+
+    return jsQrDecoderRef.current;
   };
 
+  const stopScan = useCallback(() => {
+    if (animationFrameRef.current !== null) {
+      window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+    }
+
+    setIsScanning(false);
+  }, []);
+
+  const handleDecodedText = useCallback((decodedText: string) => {
+    try {
+      const data = JSON.parse(decodedText) as ScannedData;
+      if (data.type === 'volunteer' || data.type === 'student') {
+        setScannedData(data);
+        toast({
+          title: 'QR Code Scanned!',
+          description: `Details for ${data.name} loaded.`,
+        });
+        stopScan();
+      } else {
+        throw new Error('Invalid QR code format.');
+      }
+    } catch (error) {
+      console.error('Error parsing QR code', error);
+      toast({
+        title: 'Invalid QR Code',
+        description: 'This QR code does not contain valid badge data.',
+        variant: 'destructive',
+      });
+    }
+  }, [stopScan, toast]);
+
+  const scanVideoFrame = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const decodeQr = jsQrDecoderRef.current;
+
+    if (!video || !canvas || !decodeQr) {
+      animationFrameRef.current = window.requestAnimationFrame(scanVideoFrame);
+      return;
+    }
+
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) {
+      animationFrameRef.current = window.requestAnimationFrame(scanVideoFrame);
+      return;
+    }
+
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) {
+      setScannerError('Scanner could not read camera frames on this browser.');
+      stopScan();
+      return;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const result = decodeQr(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: 'dontInvert',
+    });
+
+    if (result?.data) {
+      handleDecodedText(result.data);
+      return;
+    }
+
+    animationFrameRef.current = window.requestAnimationFrame(scanVideoFrame);
+  }, [handleDecodedText, stopScan]);
+
   const startScan = async () => {
-    if (scannerRegionRef.current && !isScanning) {
-      setScannerError(null);
+    if (!scannerRegionRef.current || isScanning) {
+      return;
+    }
 
-      if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setHasPermission(false);
-        setScannerError('This browser does not support camera scanning.');
-        toast({
-          title: 'Browser Not Supported',
-          description: 'Your browser does not support camera access for QR scanning.',
-          variant: 'destructive',
-        });
-        return;
+    setScannerError(null);
+    setScannedData(null);
+
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setHasPermission(false);
+      setScannerError('This browser does not support camera scanning. Use image upload instead.');
+      toast({
+        title: 'Browser Not Supported',
+        description: 'Camera access is not available here. You can still upload a badge image below.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      setHasPermission(false);
+      setScannerError('Camera scanning requires HTTPS or localhost.');
+      toast({
+        title: 'Secure Context Required',
+        description: 'Use HTTPS (or localhost) to access the camera.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await loadQrDecoder();
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+        },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+      setHasPermission(true);
+
+      if (!videoRef.current) {
+        throw new Error('Camera preview is not ready.');
       }
 
-      if (typeof window !== 'undefined' && !window.isSecureContext) {
-        setHasPermission(false);
-        setScannerError('Camera scanning requires HTTPS or localhost.');
-        toast({
-          title: 'Secure Context Required',
-          description: 'Use HTTPS (or localhost) to access the camera.',
-          variant: 'destructive',
-        });
-        return;
+      videoRef.current.srcObject = stream;
+      videoRef.current.setAttribute('playsinline', 'true');
+      await videoRef.current.play();
+
+      setIsScanning(true);
+      animationFrameRef.current = window.requestAnimationFrame(scanVideoFrame);
+    } catch (err) {
+      console.error('Error starting scanner', err);
+      stopScan();
+
+      const errorName = err instanceof DOMException ? err.name : '';
+      const message =
+        errorName === 'NotAllowedError'
+          ? 'Camera access was denied. Please allow camera permission and try again.'
+          : errorName === 'NotFoundError'
+            ? 'No camera device was found on this device.'
+            : 'Could not start camera. Please check permissions and try again.';
+
+      setHasPermission(false);
+      setScannerError(message);
+      toast({
+        title: 'Camera Error',
+        description: message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    setScannerError(null);
+
+    try {
+      const decodeQr = await loadQrDecoder();
+      const canvas = canvasRef.current;
+
+      if (!canvas) {
+        throw new Error('Scanner canvas not available.');
       }
 
-      const qrCodeSuccessCallback = (decodedText: string) => {
-        try {
-          const data = JSON.parse(decodedText) as ScannedData;
-          if (data.type === 'volunteer' || data.type === 'student') {
-            setScannedData(data);
-            toast({
-              title: "QR Code Scanned!",
-              description: `Details for ${data.name} loaded.`,
-            });
-            stopScan();
-          } else {
-            throw new Error("Invalid QR code format.");
-          }
-        } catch (error) {
-          console.error("Error parsing QR code", error);
-           toast({
-            title: "Invalid QR Code",
-            description: "This QR code does not contain valid data.",
-            variant: "destructive",
-          });
-        }
-      };
-
-      const qrCodeErrorCallback = () => {};
+      const imageUrl = URL.createObjectURL(file);
 
       try {
-        const Html5Qrcode = await loadQrLibrary();
+        const image = new Image();
+        image.src = imageUrl;
 
-        if (!html5QrCodeRef.current && scannerRegionRef.current) {
-          html5QrCodeRef.current = new Html5Qrcode(scannerRegionRef.current.id);
+        await new Promise<void>((resolve, reject) => {
+          image.onload = () => resolve();
+          image.onerror = () => reject(new Error('Selected image could not be loaded.'));
+        });
+
+        canvas.width = image.width;
+        canvas.height = image.height;
+
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) {
+          throw new Error('Could not process the uploaded image.');
         }
 
-        const cameras = await Html5Qrcode.getCameras();
-        if (!cameras || cameras.length === 0) {
-          setHasPermission(false);
-          setScannerError('No camera device was found on this device.');
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const result = decodeQr(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'attemptBoth',
+        });
+
+        if (!result?.data) {
           toast({
-            title: 'No Camera Found',
-            description: 'No usable camera was detected for QR scanning.',
-            variant: 'destructive'
+            title: 'QR Code Not Found',
+            description: 'No readable QR code was found in the uploaded image.',
+            variant: 'destructive',
           });
           return;
         }
 
-        const preferredCamera = cameras.find((camera) => /back|rear|environment/i.test(camera.label)) || cameras[0];
-
-        if (html5QrCodeRef.current) {
-          await html5QrCodeRef.current.start(
-            preferredCamera.id,
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            qrCodeSuccessCallback,
-            qrCodeErrorCallback
-          );
-          setIsScanning(true);
-          setScannedData(null);
-          setHasPermission(true);
-        }
-      } catch (err) {
-        console.error("Error starting scanner", err);
-        setHasPermission(false);
-        setScannerError('Could not start camera. Check camera permission and browser support, then try again.');
-        toast({
-          title: "Camera Error",
-          description: "Could not start camera. Please check permissions and try again.",
-          variant: "destructive"
-        });
+        handleDecodedText(result.data);
+      } finally {
+        URL.revokeObjectURL(imageUrl);
       }
-    }
-  };
-
-  const stopScan = () => {
-    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        html5QrCodeRef.current.stop()
-        .then(() => setIsScanning(false))
-        .catch(err => console.error("Failed to stop scanner", err));
+    } catch (err) {
+      console.error('Error decoding uploaded image', err);
+      toast({
+        title: 'Image Scan Failed',
+        description: 'The uploaded file could not be scanned. Please try a clearer image.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -286,17 +412,20 @@ export default function AdminScannerPage() {
             <Card>
                 <CardHeader>
                 <CardTitle>QR Code Scanner</CardTitle>
-                <CardDescription>Scan a badge to verify details and mark attendance.</CardDescription>
+                <CardDescription>Scan a badge with your camera or upload a badge image to verify details and mark attendance.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                 <div id="scanner-region" ref={scannerRegionRef} className="w-full aspect-square bg-muted rounded-md overflow-hidden flex items-center justify-center">
-                    {!isScanning && (
+                  {isScanning ? (
+                    <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
+                  ) : (
                         <div className="text-center text-muted-foreground">
                             <QrCode className="h-16 w-16 mx-auto" />
-                            <p className="mt-2">Camera is ready for scanning</p>
+                      <p className="mt-2">Camera is ready for scanning</p>
                         </div>
                     )}
                 </div>
+                <canvas ref={canvasRef} className="hidden" />
                 {hasPermission === false && (
                     <Alert variant="destructive">
                     <CameraOff className="h-4 w-4" />
@@ -318,13 +447,19 @@ export default function AdminScannerPage() {
                 )}
 
                 <div className="flex gap-4">
-                    <Button onClick={startScan} disabled={isScanning || hasPermission === false} className="w-full">
+                  <Button onClick={startScan} disabled={isScanning} className="w-full">
                         <Camera className="mr-2 h-4 w-4" /> Start Scan
                     </Button>
                     <Button onClick={stopScan} disabled={!isScanning} variant="outline" className="w-full">
                         <CameraOff className="mr-2 h-4 w-4" /> Stop Scan
                     </Button>
                 </div>
+                <Button variant="secondary" asChild className="w-full">
+                  <label className="cursor-pointer">
+                    <Upload className="mr-2 h-4 w-4" /> Upload QR Image
+                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                  </label>
+                </Button>
                 </CardContent>
             </Card>
 
