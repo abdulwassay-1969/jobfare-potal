@@ -12,8 +12,8 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Unified Main Admin authority check (admin@example.com)
-      return isSignedIn() && request.auth.token.email == 'admin@example.com';
+      // Unified Main Admin authority check
+      return isSignedIn() && request.auth.token.email == 'abdulwassaynisar@gmail.com';
     }
 
     function isOwner(userId) {

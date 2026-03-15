@@ -1,5 +1,5 @@
 export const ADMIN_EMAIL =
-  process.env.NEXT_PUBLIC_ADMIN_EMAIL?.trim().toLowerCase() || 'admin@example.com';
+  process.env.NEXT_PUBLIC_ADMIN_EMAIL?.trim().toLowerCase() || 'abdulwassaynisar@gmail.com';
 
 export const ADMIN_USERNAME =
   process.env.NEXT_PUBLIC_ADMIN_USERNAME?.trim().toLowerCase() || 'admin';
