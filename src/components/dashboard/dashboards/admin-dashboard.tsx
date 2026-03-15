@@ -32,6 +32,11 @@ import {
   LayoutGrid,
   ChevronRight,
   ClipboardCheck,
+  UserCheck,
+  Briefcase,
+  CalendarDays,
+  Clock,
+  Activity,
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { Student, Company, Placement, Volunteer, Interview } from '@/lib/types';
@@ -146,6 +151,37 @@ export function AdminDashboard() {
   const pendingCompaniesCount = useMemo(() => allCompanies?.filter(c => c.status === 'pending').length ?? 0, [allCompanies]);
   const approvedVolunteersCount = useMemo(() => allVolunteers?.filter(v => v.status === 'approved').length ?? 0, [allVolunteers]);
   const pendingVolunteersCount = useMemo(() => allVolunteers?.filter(v => v.status === 'pending').length ?? 0, [allVolunteers]);
+  const totalPendingApprovals = pendingStudentsCount + pendingCompaniesCount + pendingVolunteersCount;
+
+  const interviewStats = useMemo(() => {
+    const list = allInterviews ?? [];
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+    const getDate = (value: unknown): Date | null => {
+      if (!value) return null;
+      if (typeof value === 'object' && value !== null && 'toDate' in value && typeof (value as any).toDate === 'function') {
+        return (value as any).toDate();
+      }
+      if (value instanceof Date) return value;
+      return null;
+    };
+
+    const today = list.filter((interview) => {
+      const date = getDate(interview.startTime);
+      return !!date && date >= startOfToday && date < endOfToday;
+    }).length;
+
+    return {
+      total: list.length,
+      scheduled: list.filter((interview) => interview.status === 'Scheduled').length,
+      completed: list.filter((interview) => interview.status === 'Completed').length,
+      noShow: list.filter((interview) => interview.status === 'No Show').length,
+      canceled: list.filter((interview) => interview.status === 'Canceled').length,
+      today,
+    };
+  }, [allInterviews]);
 
   const departmentPlacements = useMemo(() => {
     if (!allStudents || !placements) return [];
@@ -180,6 +216,14 @@ export function AdminDashboard() {
         <div>
             <h1 className="text-3xl font-bold tracking-tight">Main Command Center</h1>
             <p className="text-muted-foreground">Unified management for C@SE Job Fair.</p>
+            <div className="mt-2 flex items-center gap-2">
+              <Badge variant={totalPendingApprovals > 0 ? 'destructive' : 'outline'}>
+                {totalPendingApprovals} Pending Approvals
+              </Badge>
+              <Badge variant="outline" className="text-green-700 border-green-700/20 bg-green-700/5">
+                System Online
+              </Badge>
+            </div>
         </div>
         <div className="flex gap-2">
             <Button asChild size="sm">
@@ -190,19 +234,27 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
         <QuickAction href="/dashboard/volunteers/attendance" icon={ClipboardCheck} label="Attendance" description="Check-in logs" />
         <QuickAction href="/dashboard/student-spots" icon={LayoutGrid} label="Student Spots" description="Booth assignments" />
         <QuickAction href="/dashboard/room-assignments" icon={MapPin} label="Rooming" description="Company locations" />
-        <QuickAction href="/dashboard/manage-students" icon={Users} label="Approvals" description="Review requests" />
+        <QuickAction href="/dashboard/manage-students" icon={UserCheck} label="Student Reviews" description="Approve/reject" />
+        <QuickAction href="/dashboard/manage-companies" icon={Building} label="Company Reviews" description="Approve/reject" />
+        <QuickAction href="/dashboard/volunteers" icon={Users} label="Volunteer Reviews" description="Approve/reject" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
             <BreakControl />
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
                 <StatCard title="Total Students" value={approvedStudents.length} icon={<Users className="h-4 w-4 text-primary" />} loading={isLoading} />
                 <StatCard title="Participating Companies" value={approvedCompaniesCount} icon={<Building className="h-4 w-4 text-primary" />} loading={isLoading} />
+                <StatCard title="Active Volunteers" value={approvedVolunteersCount} icon={<Briefcase className="h-4 w-4 text-primary" />} loading={isLoading} />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <StatCard title="Interviews Today" value={interviewStats.today} icon={<CalendarDays className="h-4 w-4 text-primary" />} loading={isLoading} />
+              <StatCard title="Total Interviews" value={interviewStats.total} icon={<Clock className="h-4 w-4 text-primary" />} loading={isLoading} />
             </div>
             
             <Card>
@@ -211,7 +263,11 @@ export function AdminDashboard() {
                     <CardDescription>Department-wise distribution of hired candidates.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {isLoading ? <Skeleton className="h-[300px] w-full" /> : (
+                    {isLoading ? <Skeleton className="h-[300px] w-full" /> : departmentPlacements.length === 0 ? (
+                        <div className="h-[300px] rounded-md border border-dashed flex items-center justify-center text-sm text-muted-foreground">
+                          No placement data available yet.
+                        </div>
+                    ) : (
                         <ChartContainer config={chartConfig} className="h-[300px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={departmentPlacements} margin={{ top: 20, right: 20, left: -10, bottom: 0 }}>
@@ -233,7 +289,7 @@ export function AdminDashboard() {
             <Card className="border-yellow-500/20 bg-yellow-500/5">
                 <CardHeader>
                     <CardTitle className="text-lg">Action Required</CardTitle>
-                    <CardDescription>Pending registrations.</CardDescription>
+              <CardDescription>Pending registrations requiring admin review.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                     <PendingApprovalCard title="Students" count={pendingStudentsCount} href="/dashboard/manage-students" loading={isLoading} />
@@ -241,6 +297,21 @@ export function AdminDashboard() {
                     <PendingApprovalCard title="Volunteers" count={pendingVolunteersCount} href="/dashboard/volunteers" loading={isLoading} />
                 </CardContent>
             </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Activity className="h-4 w-4" /> Interview Operations
+              </CardTitle>
+              <CardDescription>Live status across all interviews.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex items-center justify-between"><span className="text-muted-foreground">Scheduled</span><span className="font-semibold">{interviewStats.scheduled}</span></div>
+              <div className="flex items-center justify-between"><span className="text-muted-foreground">Completed</span><span className="font-semibold">{interviewStats.completed}</span></div>
+              <div className="flex items-center justify-between"><span className="text-muted-foreground">No Show</span><span className="font-semibold">{interviewStats.noShow}</span></div>
+              <div className="flex items-center justify-between"><span className="text-muted-foreground">Canceled</span><span className="font-semibold">{interviewStats.canceled}</span></div>
+            </CardContent>
+          </Card>
 
             <Card>
                 <CardHeader>
