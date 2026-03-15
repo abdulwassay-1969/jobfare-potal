@@ -12,8 +12,11 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Custom claim based admin authority
-      return isSignedIn() && request.auth.token.admin == true;
+      // Admin authority via custom claim (preferred) or trusted admin email fallback
+      return isSignedIn() && (
+        request.auth.token.admin == true
+        || request.auth.token.email == 'abdulwassaynisar@gmail.com'
+      );
     }
 
     function isOwner(userId) {
