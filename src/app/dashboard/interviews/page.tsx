@@ -3,12 +3,32 @@
 import { useAuth } from '@/hooks/use-auth';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, query, where, Timestamp, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Calendar, User, Building, Clock, MapPin, MoreVertical, ArrowLeft } from 'lucide-react';
+import { Calendar, User, Building, Clock, MapPin, MoreVertical, ArrowLeft, CalendarIcon } from 'lucide-react';
 import { Interview } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,8 +37,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as DatePickerCalendar } from '@/components/ui/calendar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { format } from 'date-fns';
 
 const statusColors: Record<Interview['status'], string> = {
     Scheduled: 'border-blue-500/80 bg-blue-500/10 text-blue-700 dark:text-blue-400',
@@ -27,11 +52,32 @@ const statusColors: Record<Interview['status'], string> = {
     'No Show': 'border-gray-500/80 bg-gray-500/10 text-gray-700 dark:text-gray-400',
 };
 
+const rescheduleFormSchema = z.object({
+  date: z.date({ required_error: 'A date is required.' }),
+  hour: z.string({ required_error: 'Hour is required.' }),
+  minute: z.string({ required_error: 'Minute is required.' }),
+  ampm: z.enum(['AM', 'PM'], { required_error: 'AM/PM is required.' }),
+});
+
+type RescheduleFormValues = z.infer<typeof rescheduleFormSchema>;
+
 
 export default function InterviewsPage() {
   const { user, role, loading: authLoading } = useAuth();
   const db = useFirestore();
   const { toast } = useToast();
+  const [isEditTimeDialogOpen, setIsEditTimeDialogOpen] = useState(false);
+  const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
+
+  const rescheduleForm = useForm<RescheduleFormValues>({
+    resolver: zodResolver(rescheduleFormSchema),
+    defaultValues: {
+      date: new Date(),
+      hour: '09',
+      minute: '00',
+      ampm: 'AM',
+    },
+  });
 
   const interviewsQuery = useMemoFirebase(() => {
     if (!db || !user || !role) return null;
@@ -134,6 +180,87 @@ export default function InterviewsPage() {
     }
   };
 
+  const openEditTimeDialog = (interview: Interview) => {
+    const startDate = getInterviewDate(interview.startTime) ?? new Date();
+    let hour = startDate.getHours();
+    const minute = startDate.getMinutes();
+    const ampm: 'AM' | 'PM' = hour >= 12 ? 'PM' : 'AM';
+
+    if (hour === 0) {
+      hour = 12;
+    } else if (hour > 12) {
+      hour -= 12;
+    }
+
+    setSelectedInterview(interview);
+    rescheduleForm.reset({
+      date: startDate,
+      hour: String(hour).padStart(2, '0'),
+      minute: String(minute).padStart(2, '0'),
+      ampm,
+    });
+    setIsEditTimeDialogOpen(true);
+  };
+
+  const handleEditTimeSubmit = async (data: RescheduleFormValues) => {
+    if (!db || !selectedInterview) return;
+
+    const interviewRef = doc(db, 'interviews', selectedInterview.id);
+    const newDateTime = new Date(data.date);
+    let hour = parseInt(data.hour, 10);
+    const minute = parseInt(data.minute, 10);
+
+    if (data.ampm === 'PM' && hour < 12) hour += 12;
+    if (data.ampm === 'AM' && hour === 12) hour = 0;
+
+    newDateTime.setHours(hour, minute, 0, 0);
+    const newEndTime = new Date(newDateTime.getTime() + 30 * 60000);
+
+    const dataToUpdate = {
+      startTime: Timestamp.fromDate(newDateTime),
+      endTime: Timestamp.fromDate(newEndTime),
+      status: 'Scheduled' as const,
+    };
+
+    try {
+      await updateDoc(interviewRef, dataToUpdate);
+
+      try {
+        await addDoc(collection(db, 'userProfiles', selectedInterview.studentId, 'notifications'), {
+          recipientUserProfileId: selectedInterview.studentId,
+          title: 'Interview Time Updated',
+          message: `${selectedInterview.companyName} updated your interview to ${format(newDateTime, 'PPP p')}.`,
+          type: 'interview_rescheduled',
+          targetUrl: '/dashboard/interviews',
+          isRead: false,
+          sentAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+        });
+      } catch (notificationError) {
+        console.warn('Reschedule notification could not be created:', notificationError);
+      }
+
+      toast({
+        title: 'Interview updated',
+        description: `New time set for ${selectedInterview.studentName}.`,
+      });
+      setIsEditTimeDialogOpen(false);
+      setSelectedInterview(null);
+    } catch (serverError: any) {
+      const permissionError = new FirestorePermissionError({
+        path: interviewRef.path,
+        operation: 'update',
+        requestResourceData: dataToUpdate,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      toast({
+        title: 'Update failed',
+        description: 'Could not update interview time due to permissions.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const InterviewCard = ({ interview }: { interview: Interview }) => (
      (() => {
       const startDate = getInterviewDate(interview.startTime);
@@ -206,6 +333,9 @@ export default function InterviewsPage() {
                         {interview.status === 'No Show' && (
                           <>
                             <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => openEditTimeDialog(interview)}>
+                              Edit Time
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleRecallStudent(interview)}>
                               Recall Student
                             </DropdownMenuItem>
@@ -265,6 +395,129 @@ export default function InterviewsPage() {
           {error && <p className="text-red-500 mt-4">Error loading interviews: {error.message}</p>}
         </CardContent>
       </Card>
+
+      <Dialog open={isEditTimeDialogOpen} onOpenChange={setIsEditTimeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Interview Time</DialogTitle>
+            <DialogDescription>
+              Update interview time and send updated schedule to the student.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...rescheduleForm}>
+            <form onSubmit={rescheduleForm.handleSubmit(handleEditTimeSubmit)} className="space-y-4">
+              <FormField
+                control={rescheduleForm.control}
+                name="date"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <DatePickerCalendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-3 gap-3">
+                <FormField
+                  control={rescheduleForm.control}
+                  name="hour"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Hour</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="HH" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map((h) => (
+                            <SelectItem key={h} value={h}>
+                              {h}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={rescheduleForm.control}
+                  name="minute"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Minute</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="MM" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {['00', '15', '30', '45'].map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={rescheduleForm.control}
+                  name="ampm"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>AM/PM</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="AM/PM" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="AM">AM</SelectItem>
+                          <SelectItem value="PM">PM</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsEditTimeDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">Save New Time</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
