@@ -31,8 +31,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { useAuth } from '@/hooks/use-auth';
-import { Student, Project } from '@/lib/types';
-import { Building, Users, Handshake, CalendarPlus, Star, StarOff, FolderKanban, FileText } from 'lucide-react';
+import { Student, Project, Interview } from '@/lib/types';
+import { Building, Users, Handshake, CalendarPlus, Star, StarOff, FolderKanban, FileText, Calendar, Clock, MapPin } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { RoomInfoCard } from '@/components/dashboard/room-info-card';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/accordion';
 import { useToast } from '@/hooks/use-toast';
 import { BreakBanner } from '@/components/dashboard/break-banner';
+import { format } from 'date-fns';
 
 export default function CompanyDashboardPage() {
   const { user } = useAuth();
@@ -68,11 +69,28 @@ export default function CompanyDashboardPage() {
     return collection(db, 'companies', user.uid, 'shortlistedStudents');
   }, [db, user]);
 
+  const interviewsQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(collection(db, 'interviews'), where('companyId', '==', user.uid));
+  }, [db, user]);
+
   const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
   const { data: projects, isLoading: loadingProjects } = useCollection<Project>(projectsQuery);
   const { data: shortlist, isLoading: loadingShortlist } = useCollection<{ studentId: string }>(shortlistQuery);
+  const { data: interviews, isLoading: loadingInterviews } = useCollection<Interview>(interviewsQuery);
   const shortlistedIds = useMemo(() => new Set(shortlist?.map(s => s.id) || []), [shortlist]);
   const isLoading = loadingStudents || loadingProjects || loadingShortlist;
+
+  const upcomingInterviews = useMemo(() => {
+    const now = new Date();
+    return (interviews || [])
+      .filter((interview) => {
+        const start = interview.startTime?.toDate?.();
+        return start ? start >= now : false;
+      })
+      .sort((a, b) => a.startTime.toDate().getTime() - b.startTime.toDate().getTime())
+      .slice(0, 5);
+  }, [interviews]);
 
   // --- Data Processing ---
   const { projectsWithMembers, individualStudents } = useMemo(() => {
@@ -222,6 +240,47 @@ export default function CompanyDashboardPage() {
           {user && <RoomInfoCard companyId={user.uid} />}
            <Card><CardHeader><CardTitle className="flex items-center gap-2"><Handshake className="h-5 w-5" />Welcome</CardTitle></CardHeader><CardContent><p className="text-muted-foreground">Discover top student talent. Use this dashboard to browse projects and individuals, then shortlist and schedule interviews.</p></CardContent></Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5" /> Scheduled Interviews</CardTitle>
+          <CardDescription>Your next upcoming interview slots.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingInterviews ? (
+            <div className="space-y-2">
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+            </div>
+          ) : upcomingInterviews.length > 0 ? (
+            <div className="space-y-2">
+              {upcomingInterviews.map((interview) => {
+                const start = interview.startTime.toDate();
+                return (
+                  <div key={interview.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 rounded-md border p-3">
+                    <div>
+                      <p className="font-medium">{interview.studentName}</p>
+                      <p className="text-xs text-muted-foreground">with {interview.interviewerName}</p>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <span className="inline-flex items-center gap-1"><Clock className="h-4 w-4" />{format(start, 'p')}</span>
+                      <span className="inline-flex items-center gap-1"><Calendar className="h-4 w-4" />{format(start, 'MMM d')}</span>
+                      <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" />{interview.location}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">No upcoming interviews yet.</div>
+          )}
+          <div className="mt-4">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/dashboard/interviews">View all interviews</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
