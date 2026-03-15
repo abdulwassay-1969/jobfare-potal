@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "set-admin-claim": "node scripts/set-admin-claim.mjs"
+    "set-admin-claim": "node scripts/set-admin-claim.mjs",
+    "load-test:smoke": "node scripts/load-test.mjs --baseUrl http://localhost:9002 --concurrency 10 --duration 20",
+    "load-test:stress": "node scripts/load-test.mjs --baseUrl http://localhost:9002 --concurrency 50 --duration 60"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.3",
