@@ -24,6 +24,14 @@ service cloud.firestore {
       return isOwner(userId) && resource != null;
     }
 
+    function isStudent(userId) {
+      return exists(/databases/$(database)/documents/students/$(userId));
+    }
+
+    function isCompany(userId) {
+      return exists(/databases/$(database)/documents/companies/$(userId));
+    }
+
     // --------------------------------------------------------------------------------
     // Global Admin Override (CRITICAL: MUST BE AT TOP)
     // --------------------------------------------------------------------------------
@@ -84,7 +92,7 @@ service cloud.firestore {
 
     match /projects/{projectId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && isStudent(request.auth.uid);
       allow update: if isSignedIn() && (request.auth.uid in resource.data.teamMemberIds);
     }
 
@@ -105,13 +113,19 @@ service cloud.firestore {
 
     match /interviews/{interviewId} {
       allow read: if isSignedIn() && (request.auth.uid == resource.data.studentId || request.auth.uid == resource.data.companyId);
-      allow create: if isSignedIn();
+      allow create: if isSignedIn()
+        && isCompany(request.auth.uid)
+        && request.resource.data.companyId == request.auth.uid
+        && request.resource.data.status == 'Scheduled';
       allow update: if isSignedIn() && (request.auth.uid == resource.data.companyId || request.auth.uid == resource.data.studentId);
     }
 
     match /userProfiles/{userProfileId}/notifications/{notificationId} {
       allow read, update, delete: if isOwner(userProfileId);
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && (
+        isOwner(userProfileId)
+        || isCompany(request.auth.uid)
+      );
     }
   }
 }

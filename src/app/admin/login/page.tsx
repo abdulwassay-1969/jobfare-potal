@@ -19,12 +19,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth as useFirebaseAuth } from '@/firebase';
 import { useAuth } from '@/hooks/use-auth';
 import { Shield, ArrowLeft, LayoutDashboard, LogOut, AlertCircle, Loader2, LockKeyhole, UserCog } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { ADMIN_EMAIL, ADMIN_USERNAME } from '@/lib/security';
 
 const loginFormSchema = z.object({
   username: z.string().min(1, 'Username is required.'),
@@ -53,15 +54,12 @@ export default function AdminLoginPage() {
     setLoading(true);
     setConfigError(null);
 
-    // Strict Hardcoded Credentials Check for UI redirection
-    const isCorrectUsername = data.username === 'admin';
-    const isCorrectPassword = data.password === 'Case@1969';
-    const emailToUse = 'admin@example.com';
+    const isCorrectUsername = data.username.trim().toLowerCase() === ADMIN_USERNAME;
 
-    if (!isCorrectUsername || !isCorrectPassword) {
+    if (!isCorrectUsername) {
       toast({
         title: 'Access Denied',
-        description: 'Invalid administrator credentials.',
+        description: 'Invalid administrator username.',
         variant: 'destructive',
       });
       setLoading(false);
@@ -69,55 +67,30 @@ export default function AdminLoginPage() {
     }
 
     try {
-      // 1. Attempt sign in with the internal master email
-      await signInWithEmailAndPassword(firebaseAuth, emailToUse, data.password);
+      await signInWithEmailAndPassword(firebaseAuth, ADMIN_EMAIL, data.password);
       toast({
         title: 'Login Successful',
         description: 'Welcome to the Control Center.',
       });
       router.push('/dashboard');
     } catch (error: any) {
-      // Handle specific configuration errors
       if (error.code === 'auth/operation-not-allowed') {
         setConfigError('Authentication providers are not enabled in the Firebase Console.');
         setLoading(false);
         return;
       }
 
-      // 2. Handle cases where the account might not exist (first login)
-      // Note: auth/invalid-credential is the generic error for user-not-found/wrong-password in v11+
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        try {
-          // Attempt to create the account if sign-in failed due to non-existence
-          await createUserWithEmailAndPassword(firebaseAuth, emailToUse, data.password);
-          toast({
-            title: 'Master Account Initialized',
-            description: 'The administrator account has been set up and logged in.',
-          });
-          router.push('/dashboard');
-        } catch (createError: any) {
-          // If creation fails with 'email-already-in-use', it means the sign-in failed 
-          // because the password entered didn't match the existing master account.
-          if (createError.code === 'auth/email-already-in-use') {
-             toast({
-                title: 'Authentication Error',
-                description: 'Incorrect password for the master administrator account.',
-                variant: 'destructive',
-              });
-          } else {
-            console.error('Admin Initialization Error:', createError.code);
-            toast({
-                title: 'Setup Failed',
-                description: 'Could not initialize master account. Please check your credentials.',
-                variant: 'destructive',
-            });
-          }
-        }
+      if (error.code === 'auth/user-not-found') {
+        toast({
+          title: 'Admin Account Not Found',
+          description: 'Create the admin account securely from Firebase Console first.',
+          variant: 'destructive',
+        });
       } else {
         console.error('Admin Login Error:', error.code);
         toast({
           title: 'Authentication Error',
-          description: 'A network or system error occurred. Please try again.',
+          description: 'Invalid password or system error. Please try again.',
           variant: 'destructive',
         });
       }
@@ -226,7 +199,7 @@ export default function AdminLoginPage() {
                     <FormItem>
                       <FormLabel>Username</FormLabel>
                       <FormControl>
-                        <Input placeholder="admin" type="text" {...field} />
+                        <Input placeholder={ADMIN_USERNAME} type="text" {...field} />
                       </FormControl>
                       <FormDescription>Use the administrator username provided by system owner.</FormDescription>
                       <FormMessage />

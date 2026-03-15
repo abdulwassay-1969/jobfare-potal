@@ -9,6 +9,7 @@ import { SidebarNav } from "@/components/dashboard/sidebar-nav"
 import { GraduationCap } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth";
 import { EmailVerificationMessage } from "@/components/dashboard/dashboards/status-messages";
+import { isAdminEmail } from "@/lib/security";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, role, profileStatus } = useAuth();
@@ -24,12 +25,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
     
     // Check for roles
-    if (!role && user.email !== 'admin@example.com') {
+    if (!role && !isAdminEmail(user.email)) {
       router.push("/");
     }
   }, [user, loading, role, router]);
 
-  if (loading || !user || user.isAnonymous || (!role && user.email !== 'admin@example.com')) {
+  if (loading || !user || user.isAnonymous || (!role && !isAdminEmail(user.email))) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -41,7 +42,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   // Mandatory Email Verification Check (except master admin)
-  if (!user.emailVerified && user.email !== 'admin@example.com') {
+  if (!user.emailVerified && !isAdminEmail(user.email)) {
     return (
         <div className="min-h-screen bg-muted/20 flex flex-col">
             <header className="h-14 border-b bg-background flex items-center px-6">

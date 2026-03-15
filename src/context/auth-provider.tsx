@@ -7,6 +7,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, writeBatch, Firestore, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { useAuth as useFirebaseAuth, useFirestore } from '@/firebase';
 import type { UserRole } from '@/lib/types';
+import { isAdminEmail } from '@/lib/security';
 
 interface AuthContextType {
   user: User | null;
@@ -29,7 +30,7 @@ export const AuthContext = createContext<AuthContextType>({
  * This is a critical security and initialization function for the unified administrator account.
  */
 async function ensureAdminProfile(db: Firestore, user: User) {
-  if (user.email !== 'admin@example.com') return;
+  if (!isAdminEmail(user.email)) return;
 
   const userProfileRef = doc(db, 'userProfiles', user.uid);
   const adminRef = doc(db, 'admins', user.uid);
@@ -118,7 +119,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setProfileLoading(true);
 
     // Handle the unified system Main Admin account
-    if (user.email === 'admin@example.com') {
+    if (isAdminEmail(user.email)) {
       ensureAdminProfile(db, user).finally(() => {
         setRole('admin');
         setProfileStatus('approved');

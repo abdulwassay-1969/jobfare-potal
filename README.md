@@ -28,10 +28,14 @@ Production-ready Next.js + Firebase web app for students, companies, volunteers,
 Create a `.env.local` file in the project root:
 
 NEXT_PUBLIC_APP_URL=http://localhost:9002
+NEXT_PUBLIC_ADMIN_EMAIL=admin@example.com
+NEXT_PUBLIC_ADMIN_USERNAME=admin
 
 For production (Vercel), set:
 
 NEXT_PUBLIC_APP_URL=https://jobfare-potal.vercel.app
+NEXT_PUBLIC_ADMIN_EMAIL=admin@example.com
+NEXT_PUBLIC_ADMIN_USERNAME=admin
 
 ## Firebase Auth Setup (Required)
 
@@ -49,6 +53,11 @@ In Firebase Console:
 3. Google provider setup
 	- Select support email
 	- Save provider configuration
+
+4. Admin account hardening
+	- Create admin account manually in Firebase Authentication users
+	- Do not rely on frontend auto-creation
+	- Rotate admin password and keep it private
 
 ## Verification Email Branding
 
