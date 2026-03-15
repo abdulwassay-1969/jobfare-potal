@@ -64,6 +64,7 @@ const rescheduleFormSchema = z.object({
 type RescheduleFormValues = z.infer<typeof rescheduleFormSchema>;
 
 type StatusFilter = 'All' | Interview['status'];
+type TimeFilter = 'All Time' | 'Today' | 'Upcoming' | 'Past';
 
 
 export default function InterviewsPage() {
@@ -73,7 +74,9 @@ export default function InterviewsPage() {
   const [isEditTimeDialogOpen, setIsEditTimeDialogOpen] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('All Time');
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeInterviewIds, setActiveInterviewIds] = useState<Record<string, boolean>>({});
 
   const rescheduleForm = useForm<RescheduleFormValues>({
     resolver: zodResolver(rescheduleFormSchema),
@@ -125,6 +128,13 @@ export default function InterviewsPage() {
         title: 'Interview Status Updated',
         description: `The interview is now marked as ${status}.`,
       });
+      if (status === 'Completed') {
+        setActiveInterviewIds((previous) => {
+          const next = { ...previous };
+          delete next[interviewId];
+          return next;
+        });
+      }
     } catch (serverError: any) {
         const permissionError = new FirestorePermissionError({
           path: interviewRef.path,
@@ -140,6 +150,18 @@ export default function InterviewsPage() {
     }
   };
 
+  const handleStartInterview = (interview: Interview) => {
+    setActiveInterviewIds((previous) => ({
+      ...previous,
+      [interview.id]: true,
+    }));
+
+    toast({
+      title: 'Interview started',
+      description: `Started with ${interview.studentName}. Use Mark Complete when done.`,
+    });
+  };
+
   const sortedInterviews = useMemo(() => {
     if (!interviews) return [];
     return [...interviews].sort((a, b) => {
@@ -153,6 +175,28 @@ export default function InterviewsPage() {
     const normalizedSearch = searchTerm.trim().toLowerCase();
     return sortedInterviews.filter((interview) => {
       if (statusFilter !== 'All' && interview.status !== statusFilter) return false;
+
+      const startDate = getInterviewDate(interview.startTime);
+      if (timeFilter !== 'All Time' && startDate) {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+        if (timeFilter === 'Today' && !(startDate >= todayStart && startDate < tomorrowStart)) {
+          return false;
+        }
+
+        if (timeFilter === 'Upcoming' && startDate < tomorrowStart) {
+          return false;
+        }
+
+        if (timeFilter === 'Past' && startDate >= todayStart) {
+          return false;
+        }
+      } else if (timeFilter !== 'All Time' && !startDate) {
+        return false;
+      }
+
       if (!normalizedSearch) return true;
 
       const searchable = [
@@ -166,7 +210,7 @@ export default function InterviewsPage() {
 
       return searchable.includes(normalizedSearch);
     });
-  }, [sortedInterviews, searchTerm, statusFilter]);
+  }, [sortedInterviews, searchTerm, statusFilter, timeFilter]);
 
   const stats = useMemo(() => {
     const total = sortedInterviews.length;
@@ -319,6 +363,19 @@ export default function InterviewsPage() {
             day: 'numeric',
           })
         : 'Invalid date';
+      const createdDate = getInterviewDate(interview.createdAt);
+      const createdLabel = createdDate ? format(createdDate, 'PPP p') : 'Unknown';
+      const statusTimelineText =
+        interview.status === 'Scheduled'
+          ? `Scheduled for ${dateLabel} at ${timeLabel}`
+          : interview.status === 'Completed'
+            ? 'Marked as completed'
+            : interview.status === 'No Show'
+              ? 'Marked as no show'
+              : 'Marked as canceled';
+      const isScheduled = interview.status === 'Scheduled';
+      const isActive = Boolean(activeInterviewIds[interview.id]);
+      const isInPastOrNow = startDate ? startDate.getTime() <= Date.now() : false;
 
       return (
      <Card key={interview.id} className="overflow-hidden">
@@ -331,6 +388,10 @@ export default function InterviewsPage() {
                 <p className="text-sm text-muted-foreground">
                 with {interview.interviewerName}
                 </p>
+                <div className="mt-2 border-l border-border pl-3 space-y-1">
+                  <p className="text-xs text-muted-foreground">Created: {createdLabel}</p>
+                  <p className="text-xs text-muted-foreground">Activity: {statusTimelineText}</p>
+                </div>
             </div>
             
             <div className="space-y-1">
@@ -356,6 +417,18 @@ export default function InterviewsPage() {
                 </div>
                 {role === 'company' && (
                     <div className="flex items-center gap-2">
+                      {isScheduled && (
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            isInPastOrNow || isActive
+                              ? handleStatusUpdate(interview.id, 'Completed')
+                              : handleStartInterview(interview)
+                          }
+                        >
+                          {isInPastOrNow || isActive ? 'Mark Complete' : 'Start Interview'}
+                        </Button>
+                      )}
                       {(interview.status === 'Scheduled' || interview.status === 'No Show') && (
                         <Button variant="outline" size="sm" onClick={() => openEditTimeDialog(interview)}>
                           Edit Time
@@ -464,6 +537,17 @@ export default function InterviewsPage() {
                   />
                 </div>
 
+                <Tabs value={timeFilter} onValueChange={(value) => setTimeFilter(value as TimeFilter)}>
+                  <TabsList>
+                    <TabsTrigger value="All Time">All Time</TabsTrigger>
+                    <TabsTrigger value="Today">Today</TabsTrigger>
+                    <TabsTrigger value="Upcoming">Upcoming</TabsTrigger>
+                    <TabsTrigger value="Past">Past</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
                 <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
                   <TabsList>
                     <TabsTrigger value="All">All</TabsTrigger>
@@ -496,7 +580,7 @@ export default function InterviewsPage() {
                 <Calendar className="h-16 w-16 mx-auto" />
                 <h3 className="mt-4 text-lg font-semibold">No interviews found</h3>
                 <p className="mt-2 text-sm max-w-xs mx-auto">
-                  {searchTerm || statusFilter !== 'All'
+                  {searchTerm || statusFilter !== 'All' || timeFilter !== 'All Time'
                     ? 'Try changing the search or status filter.'
                     : role === 'company'
                       ? 'You can schedule interviews with students from the main dashboard.'
