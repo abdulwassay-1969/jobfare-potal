@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -21,8 +22,9 @@ import Link from 'next/link';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth as useFirebaseAuth } from '@/firebase';
 import { useAuth } from '@/hooks/use-auth';
-import { Shield, ArrowLeft, LayoutDashboard, LogOut, AlertCircle, Loader2 } from 'lucide-react';
+import { Shield, ArrowLeft, LayoutDashboard, LogOut, AlertCircle, Loader2, LockKeyhole, UserCog } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 
 const loginFormSchema = z.object({
   username: z.string().min(1, 'Username is required.'),
@@ -125,9 +127,21 @@ export default function AdminLoginPage() {
   }
 
   const handleLogout = async () => {
-    await signOut(firebaseAuth);
-    router.replace('/admin/login');
-    router.refresh();
+    try {
+      await signOut(firebaseAuth);
+      toast({
+        title: 'Signed Out',
+        description: 'Admin session ended successfully.',
+      });
+      router.replace('/admin/login');
+      router.refresh();
+    } catch {
+      toast({
+        title: 'Sign Out Failed',
+        description: 'Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   if (authLoading) {
@@ -144,10 +158,13 @@ export default function AdminLoginPage() {
         <Card className="w-full max-w-md shadow-lg border-primary/20">
           <CardHeader className="text-center">
             <Shield className="h-12 w-12 text-primary mx-auto mb-4" />
-            <CardTitle>Admin Session Active</CardTitle>
+            <CardTitle>Administrator Session Active</CardTitle>
             <CardDescription className="pt-2">
               You are currently signed in as <span className="font-bold text-foreground">Administrator</span>.
             </CardDescription>
+            <div className="pt-2">
+              <Badge variant="outline" className="text-green-700 border-green-700/20 bg-green-700/5">Secure Session</Badge>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button asChild className="w-full h-12 text-base">
@@ -172,15 +189,27 @@ export default function AdminLoginPage() {
         <div className="flex flex-col items-center gap-2 mb-4">
             <Shield className="h-12 w-12 text-primary" />
             <span className="text-2xl font-bold">Administrator Access</span>
+            <p className="text-sm text-muted-foreground text-center">Restricted area for authorized event management only.</p>
         </div>
         <Card>
           <CardHeader>
-            <CardTitle>Admin Login</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle>Admin Login</CardTitle>
+              <Badge variant="outline">Protected</Badge>
+            </div>
             <CardDescription>
               Enter secure credentials to access the management portal.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            <Alert>
+              <LockKeyhole className="h-4 w-4" />
+              <AlertTitle>Security Notice</AlertTitle>
+              <AlertDescription>
+                This portal controls approvals, assignments, attendance, and event operations.
+              </AlertDescription>
+            </Alert>
+
             {configError && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -199,6 +228,7 @@ export default function AdminLoginPage() {
                       <FormControl>
                         <Input placeholder="admin" type="text" {...field} />
                       </FormControl>
+                      <FormDescription>Use the administrator username provided by system owner.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -212,12 +242,14 @@ export default function AdminLoginPage() {
                       <FormControl>
                         <Input placeholder="••••••••" type="password" {...field} />
                       </FormControl>
+                      <FormDescription>Credentials are case-sensitive.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 <Button type="submit" disabled={loading} className="w-full h-11">
-                  {loading ? 'Verifying...' : 'Sign In as Admin'}
+                  <UserCog className="mr-2 h-4 w-4" />
+                  {loading ? 'Verifying...' : 'Sign In as Administrator'}
                 </Button>
               </form>
             </Form>
