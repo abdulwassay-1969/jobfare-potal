@@ -117,11 +117,14 @@ export default function LoginPage() {
     } catch (error: any) {
       if (error.code === 'auth/operation-not-allowed') {
         setConfigError('Google sign-in is not enabled in the Firebase Console.');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+        setConfigError(`Google sign-in is blocked for ${currentHost}. Add this domain in Firebase Console → Authentication → Settings → Authorized domains.`);
       } else {
         console.error('Google Sign-In failed:', error);
         toast({
           title: 'Sign In Failed',
-          description: 'An error occurred during Google Sign-In.',
+          description: error.message || 'An error occurred during Google Sign-In.',
           variant: 'destructive',
         });
       }

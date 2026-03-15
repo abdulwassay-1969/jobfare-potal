@@ -176,6 +176,13 @@ export default function CompanyRegistrationPage() {
           description: 'Google sign-in is not enabled in the Firebase Console.',
           variant: 'destructive',
         });
+      } else if (error.code === 'auth/unauthorized-domain') {
+        const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+        toast({
+          title: 'Google Sign-In Blocked',
+          description: `Add ${currentHost} in Firebase Console → Authentication → Settings → Authorized domains.`,
+          variant: 'destructive',
+        });
       } else {
         console.error('Google Sign-Up failed:', error);
         toast({
