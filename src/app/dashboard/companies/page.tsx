@@ -32,7 +32,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { useAuth } from '@/hooks/use-auth';
 import { Student, Project, Interview } from '@/lib/types';
-import { Building, Users, Handshake, CalendarPlus, Star, StarOff, FolderKanban, FileText, Calendar, Clock, MapPin } from 'lucide-react';
+import { Building, Users, Handshake, CalendarPlus, Star, StarOff, FolderKanban, FileText, Calendar, Clock, MapPin, BellDot } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { RoomInfoCard } from '@/components/dashboard/room-info-card';
 import { Button } from '@/components/ui/button';
@@ -45,7 +45,7 @@ import {
 } from '@/components/ui/accordion';
 import { useToast } from '@/hooks/use-toast';
 import { BreakBanner } from '@/components/dashboard/break-banner';
-import { format } from 'date-fns';
+import { format, formatDistanceToNowStrict } from 'date-fns';
 
 export default function CompanyDashboardPage() {
   const { user } = useAuth();
@@ -91,6 +91,8 @@ export default function CompanyDashboardPage() {
       .sort((a, b) => a.startTime.toDate().getTime() - b.startTime.toDate().getTime())
       .slice(0, 5);
   }, [interviews]);
+
+  const nextInterview = upcomingInterviews[0] || null;
 
   // --- Data Processing ---
   const { projectsWithMembers, individualStudents } = useMemo(() => {
@@ -243,8 +245,8 @@ export default function CompanyDashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5" /> Scheduled Interviews</CardTitle>
-          <CardDescription>Your next upcoming interview slots.</CardDescription>
+          <CardTitle className="flex items-center gap-2"><BellDot className="h-5 w-5" /> Interview Alerts</CardTitle>
+          <CardDescription>Upcoming interview notifications with time and student details.</CardDescription>
         </CardHeader>
         <CardContent>
           {loadingInterviews ? (
@@ -253,14 +255,30 @@ export default function CompanyDashboardPage() {
               <Skeleton className="h-14 w-full" />
             </div>
           ) : upcomingInterviews.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
+              {nextInterview && (
+                <div className="rounded-md border border-primary/40 bg-primary/5 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">Next: {nextInterview.studentName}</p>
+                    <Badge variant="secondary">
+                      in {formatDistanceToNowStrict(nextInterview.startTime.toDate())}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {format(nextInterview.startTime.toDate(), 'EEE, MMM d • p')} • {nextInterview.location}
+                  </p>
+                </div>
+              )}
               {upcomingInterviews.map((interview) => {
                 const start = interview.startTime.toDate();
                 return (
-                  <div key={interview.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 rounded-md border p-3">
-                    <div>
-                      <p className="font-medium">{interview.studentName}</p>
-                      <p className="text-xs text-muted-foreground">with {interview.interviewerName}</p>
+                  <div key={interview.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 rounded-md border p-3">
+                    <div className="flex items-start gap-3">
+                      <span className="mt-1 h-2 w-2 rounded-full bg-primary" />
+                      <div>
+                        <p className="font-medium">{interview.studentName}</p>
+                        <p className="text-xs text-muted-foreground">with {interview.interviewerName}</p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <span className="inline-flex items-center gap-1"><Clock className="h-4 w-4" />{format(start, 'p')}</span>
