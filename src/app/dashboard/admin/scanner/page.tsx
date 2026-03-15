@@ -40,17 +40,12 @@ export default function AdminScannerPage() {
   const [scannedData, setScannedData] = useState<ScannedData | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [scannerError, setScannerError] = useState<string | null>(null);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const { toast } = useToast();
   const db = useFirestore();
 
   useEffect(() => {
-    Html5Qrcode.getCameras().then(cameras => {
-        setHasPermission(cameras && cameras.length > 0);
-    }).catch(err => {
-        setHasPermission(false);
-    });
-
     return () => {
       if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
         html5QrCodeRef.current.stop().catch(err => console.error("Failed to stop scanner", err));
@@ -60,6 +55,19 @@ export default function AdminScannerPage() {
 
   const startScan = async () => {
     if (scannerRegionRef.current && !isScanning) {
+      setScannerError(null);
+
+      if (typeof window !== 'undefined' && !window.isSecureContext) {
+        setHasPermission(false);
+        setScannerError('Camera scanning requires HTTPS or localhost.');
+        toast({
+          title: 'Secure Context Required',
+          description: 'Use HTTPS (or localhost) to access the camera.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const qrCodeSuccessCallback = (decodedText: string, decodedResult: any) => {
         try {
           const data = JSON.parse(decodedText) as ScannedData;
@@ -90,19 +98,35 @@ export default function AdminScannerPage() {
       }
 
       try {
+        const cameras = await Html5Qrcode.getCameras();
+        if (!cameras || cameras.length === 0) {
+         setHasPermission(false);
+         setScannerError('No camera device was found on this device.');
+         toast({
+          title: 'No Camera Found',
+          description: 'No usable camera was detected for QR scanning.',
+          variant: 'destructive'
+         });
+         return;
+        }
+
+        const preferredCamera = cameras.find((camera) => /back|rear|environment/i.test(camera.label)) || cameras[0];
+
         if(html5QrCodeRef.current) {
             await html5QrCodeRef.current.start(
-                { facingMode: "environment" },
+             preferredCamera.id,
                 { fps: 10, qrbox: { width: 250, height: 250 } },
                 qrCodeSuccessCallback,
                 qrCodeErrorCallback
             );
             setIsScanning(true);
             setScannedData(null);
+          setHasPermission(true);
         }
       } catch (err) {
          console.error("Error starting scanner", err);
          setHasPermission(false);
+        setScannerError('Could not start camera. Check camera permission and browser support, then try again.');
          toast({
             title: "Camera Error",
             description: "Could not start camera. Please check permissions and try again.",
@@ -255,9 +279,19 @@ export default function AdminScannerPage() {
                     <CameraOff className="h-4 w-4" />
                     <AlertTitle>Camera Permission Denied</AlertTitle>
                     <AlertDescription>
-                        Please grant camera access in your browser settings to use the scanner.
+                        {scannerError || 'Please grant camera access in your browser settings to use the scanner.'}
                     </AlertDescription>
                     </Alert>
+                )}
+
+                {hasPermission === null && !isScanning && (
+                  <Alert>
+                    <Camera className="h-4 w-4" />
+                    <AlertTitle>Ready to Scan</AlertTitle>
+                    <AlertDescription>
+                      Click Start Scan to request camera access and begin scanning badges.
+                    </AlertDescription>
+                  </Alert>
                 )}
 
                 <div className="flex gap-4">
