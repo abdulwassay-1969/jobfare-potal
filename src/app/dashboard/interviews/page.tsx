@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/hooks/use-auth';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, query, where, Timestamp, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, Timestamp, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar, User, Building, Clock, MapPin, MoreVertical, ArrowLeft } from 'lucide-react';
@@ -88,6 +88,52 @@ export default function InterviewsPage() {
     }
   };
 
+  const handleRecallStudent = async (interview: Interview) => {
+    if (!db) return;
+
+    const interviewRef = doc(db, 'interviews', interview.id);
+    const interviewDate = getInterviewDate(interview.startTime);
+    const interviewTimeText = interviewDate
+      ? `${interviewDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} at ${interviewDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+      : 'the scheduled time';
+
+    try {
+      await updateDoc(interviewRef, { status: 'Scheduled' });
+
+      try {
+        await addDoc(collection(db, 'userProfiles', interview.studentId, 'notifications'), {
+          recipientUserProfileId: interview.studentId,
+          title: 'Interview Recall',
+          message: `${interview.companyName} recalled your interview for ${interviewTimeText}.`,
+          type: 'interview_recall',
+          targetUrl: '/dashboard/interviews',
+          isRead: false,
+          sentAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+        });
+      } catch (notificationError) {
+        console.warn('Recall notification could not be created:', notificationError);
+      }
+
+      toast({
+        title: 'Recall sent',
+        description: `${interview.studentName} has been recalled for this interview.`,
+      });
+    } catch (serverError: any) {
+      const permissionError = new FirestorePermissionError({
+        path: interviewRef.path,
+        operation: 'update',
+        requestResourceData: { status: 'Scheduled' },
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      toast({
+        title: 'Recall failed',
+        description: 'Could not recall this interview due to permissions.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const InterviewCard = ({ interview }: { interview: Interview }) => (
      (() => {
       const startDate = getInterviewDate(interview.startTime);
@@ -157,6 +203,14 @@ export default function InterviewsPage() {
                         <DropdownMenuItem onClick={() => handleStatusUpdate(interview.id, 'Canceled')} className="text-destructive">
                             Cancel
                         </DropdownMenuItem>
+                        {interview.status === 'No Show' && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleRecallStudent(interview)}>
+                              Recall Student
+                            </DropdownMenuItem>
+                          </>
+                        )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 )}
