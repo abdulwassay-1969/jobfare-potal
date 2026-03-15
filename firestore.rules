@@ -116,6 +116,7 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && isCompany(request.auth.uid)
         && request.resource.data.companyId == request.auth.uid
+        && exists(/databases/$(database)/documents/students/$(request.resource.data.studentId))
         && request.resource.data.status == 'Scheduled';
       allow update: if isSignedIn() && (request.auth.uid == resource.data.companyId || request.auth.uid == resource.data.studentId);
     }
@@ -123,8 +124,11 @@ service cloud.firestore {
     match /userProfiles/{userProfileId}/notifications/{notificationId} {
       allow read, update, delete: if isOwner(userProfileId);
       allow create: if isSignedIn() && (
-        isOwner(userProfileId)
-        || isCompany(request.auth.uid)
+        request.resource.data.recipientUserProfileId == userProfileId
+        && (
+          isOwner(userProfileId)
+          || isCompany(request.auth.uid)
+        )
       );
     }
   }
