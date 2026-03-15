@@ -1,17 +1,22 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Camera, CameraOff, UserCheck, QrCode, User, GraduationCap, MapPin, LayoutGrid, ArrowLeft } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Camera, CameraOff, UserCheck, QrCode, MapPin, LayoutGrid, ArrowLeft } from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import Link from 'next/link';
+
+type Html5QrcodeInstance = {
+  isScanning: boolean;
+  start: (...args: any[]) => Promise<unknown>;
+  stop: () => Promise<unknown>;
+};
 
 interface ScannedVolunteerData {
   type: 'volunteer';
@@ -36,7 +41,7 @@ type ScannedData = ScannedVolunteerData | ScannedStudentData;
 
 export default function AdminScannerPage() {
   const scannerRegionRef = useRef<HTMLDivElement>(null);
-  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const html5QrCodeRef = useRef<Html5QrcodeInstance | null>(null);
   const [scannedData, setScannedData] = useState<ScannedData | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -53,9 +58,25 @@ export default function AdminScannerPage() {
     };
   }, []);
 
+  const loadQrLibrary = async () => {
+    const module = await import('html5-qrcode');
+    return module.Html5Qrcode;
+  };
+
   const startScan = async () => {
     if (scannerRegionRef.current && !isScanning) {
       setScannerError(null);
+
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setHasPermission(false);
+        setScannerError('This browser does not support camera scanning.');
+        toast({
+          title: 'Browser Not Supported',
+          description: 'Your browser does not support camera access for QR scanning.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
       if (typeof window !== 'undefined' && !window.isSecureContext) {
         setHasPermission(false);
@@ -68,7 +89,7 @@ export default function AdminScannerPage() {
         return;
       }
 
-      const qrCodeSuccessCallback = (decodedText: string, decodedResult: any) => {
+      const qrCodeSuccessCallback = (decodedText: string) => {
         try {
           const data = JSON.parse(decodedText) as ScannedData;
           if (data.type === 'volunteer' || data.type === 'student') {
@@ -91,47 +112,49 @@ export default function AdminScannerPage() {
         }
       };
 
-      const qrCodeErrorCallback = (errorMessage: string) => {};
-      
-      if (!html5QrCodeRef.current && scannerRegionRef.current) {
-         html5QrCodeRef.current = new Html5Qrcode(scannerRegionRef.current.id);
-      }
+      const qrCodeErrorCallback = () => {};
 
       try {
+        const Html5Qrcode = await loadQrLibrary();
+
+        if (!html5QrCodeRef.current && scannerRegionRef.current) {
+          html5QrCodeRef.current = new Html5Qrcode(scannerRegionRef.current.id);
+        }
+
         const cameras = await Html5Qrcode.getCameras();
         if (!cameras || cameras.length === 0) {
-         setHasPermission(false);
-         setScannerError('No camera device was found on this device.');
-         toast({
-          title: 'No Camera Found',
-          description: 'No usable camera was detected for QR scanning.',
-          variant: 'destructive'
-         });
-         return;
+          setHasPermission(false);
+          setScannerError('No camera device was found on this device.');
+          toast({
+            title: 'No Camera Found',
+            description: 'No usable camera was detected for QR scanning.',
+            variant: 'destructive'
+          });
+          return;
         }
 
         const preferredCamera = cameras.find((camera) => /back|rear|environment/i.test(camera.label)) || cameras[0];
 
-        if(html5QrCodeRef.current) {
-            await html5QrCodeRef.current.start(
-             preferredCamera.id,
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                qrCodeSuccessCallback,
-                qrCodeErrorCallback
-            );
-            setIsScanning(true);
-            setScannedData(null);
+        if (html5QrCodeRef.current) {
+          await html5QrCodeRef.current.start(
+            preferredCamera.id,
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            qrCodeSuccessCallback,
+            qrCodeErrorCallback
+          );
+          setIsScanning(true);
+          setScannedData(null);
           setHasPermission(true);
         }
       } catch (err) {
-         console.error("Error starting scanner", err);
-         setHasPermission(false);
+        console.error("Error starting scanner", err);
+        setHasPermission(false);
         setScannerError('Could not start camera. Check camera permission and browser support, then try again.');
-         toast({
-            title: "Camera Error",
-            description: "Could not start camera. Please check permissions and try again.",
-            variant: "destructive"
-         });
+        toast({
+          title: "Camera Error",
+          description: "Could not start camera. Please check permissions and try again.",
+          variant: "destructive"
+        });
       }
     }
   };
