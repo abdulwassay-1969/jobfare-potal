@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { doc, onSnapshot, setDoc, serverTimestamp, writeBatch, arrayUnion, arrayRemove, addDoc, collection, updateDoc, getDoc, query as firestoreQuery, where, documentId, deleteField } from 'firebase/firestore';
@@ -36,6 +36,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 
 const TeamMembersList = ({ memberIds, currentUserId }: { memberIds: string[], currentUserId: string }) => {
     const db = useFirestore();
@@ -353,6 +355,37 @@ export function StudentProfile() {
   const { fields: langFields, append: appendLang, remove: removeLang } = useFieldArray({ control: form.control, name: 'languages' });
   const { fields: expFields, append: appendExp, remove: removeExp } = useFieldArray({ control: form.control, name: 'experience' });
   const { fields: eduFields, append: appendEdu, remove: removeEdu } = useFieldArray({ control: form.control, name: 'education' });
+  const watchedValues = form.watch();
+
+  const profileCompletion = useMemo(() => {
+    const checks = [
+      { label: 'Full Name', ok: Boolean(watchedValues.fullName?.trim()) },
+      { label: 'Professional Title', ok: Boolean(watchedValues.title?.trim()) },
+      { label: 'Phone Number', ok: Boolean(watchedValues.phoneNumber?.trim()) },
+      { label: 'Address', ok: Boolean(watchedValues.address?.trim()) },
+      { label: 'Professional Summary', ok: Boolean(watchedValues.summary?.trim()) },
+      { label: 'Semester', ok: Boolean(watchedValues.semester?.toString().trim()) },
+      { label: 'CGPA', ok: watchedValues.cgpa !== undefined && watchedValues.cgpa !== null && `${watchedValues.cgpa}`.trim() !== '' },
+      { label: 'Skills', ok: (watchedValues.skills?.length ?? 0) > 0 },
+      { label: 'Education', ok: (watchedValues.education?.length ?? 0) > 0 },
+      { label: 'Languages', ok: (watchedValues.languages?.length ?? 0) > 0 },
+      { label: 'GitHub URL', ok: Boolean(watchedValues.githubUrl?.trim()) },
+      { label: 'LinkedIn URL', ok: Boolean(watchedValues.linkedinUrl?.trim()) },
+    ];
+
+    const completedCount = checks.filter((item) => item.ok).length;
+    const percentage = Math.round((completedCount / checks.length) * 100);
+    const missing = checks.filter((item) => !item.ok).map((item) => item.label);
+
+    return { percentage, missing };
+  }, [watchedValues]);
+
+  const completionTone =
+    profileCompletion.percentage >= 85
+      ? 'Excellent'
+      : profileCompletion.percentage >= 60
+        ? 'Good'
+        : 'Needs Work';
   
   useEffect(() => {
     if (!user) return;
@@ -396,19 +429,56 @@ export function StudentProfile() {
   return (
     <div className="space-y-6">
        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold">Student Profile</h1>
-        <Button asChild>
-          <Link href="/dashboard/profile/cv">
-            <Eye className="mr-2" /> View & Download CV
-          </Link>
-        </Button>
+        <div>
+          <h1 className="text-2xl font-bold">Student Profile</h1>
+          <p className="text-sm text-muted-foreground">Keep your profile complete and professional for recruiters.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" form="student-profile-form" disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting ? 'Saving...' : 'Save Changes'}
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/dashboard/profile/cv">
+              <Eye className="mr-2" /> View & Download CV
+            </Link>
+          </Button>
+        </div>
       </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg">Profile Completion</CardTitle>
+              <CardDescription>More complete profiles get better interview response.</CardDescription>
+            </div>
+            <Badge variant="outline">{completionTone}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Completion</span>
+            <span className="font-semibold">{profileCompletion.percentage}%</span>
+          </div>
+          <Progress value={profileCompletion.percentage} className="h-2" />
+          {profileCompletion.missing.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Missing: {profileCompletion.missing.slice(0, 4).join(', ')}{profileCompletion.missing.length > 4 ? '...' : ''}
+            </p>
+          ) : (
+            <p className="text-xs text-green-700 dark:text-green-400">Great job — your profile looks complete.</p>
+          )}
+          {form.formState.isDirty && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">You have unsaved changes.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Project Management Card */}
       <ManageProject />
         
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+        <form id="student-profile-form" onSubmit={form.handleSubmit(onSubmit)}>
           <Card>
               <CardHeader>
                 <CardTitle>Your Information</CardTitle>
