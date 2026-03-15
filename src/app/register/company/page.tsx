@@ -27,6 +27,7 @@ import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, se
 import { collection, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { GraduationCap, ArrowLeft } from 'lucide-react';
+import { getEmailVerificationActionSettings } from '@/lib/auth-email';
 
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -82,7 +83,7 @@ export default function CompanyRegistrationPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
 
-      await sendEmailVerification(user);
+      await sendEmailVerification(user, getEmailVerificationActionSettings());
 
       await setDoc(doc(firestore, 'userProfiles', user.uid), {
         id: user.uid,

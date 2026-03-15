@@ -10,6 +10,7 @@ import { sendEmailVerification, signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { getEmailVerificationActionSettings } from '@/lib/auth-email';
 
 export function PendingApprovalMessage() {
     const { profileName } = useAuth();
@@ -87,7 +88,7 @@ export function EmailVerificationMessage() {
         if (!user) return;
         setLoading(true);
         try {
-            await sendEmailVerification(user);
+            await sendEmailVerification(user, getEmailVerificationActionSettings());
             toast({
                 title: "Verification Email Sent",
                 description: "Please check your inbox (and spam folder) for the verification link.",

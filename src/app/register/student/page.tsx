@@ -36,6 +36,7 @@ import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import Link from "next/link";
 import { GraduationCap, ArrowLeft } from "lucide-react";
+import { getEmailVerificationActionSettings } from "@/lib/auth-email";
 
 export default function StudentRegistrationPage() {
   const { toast } = useToast();
@@ -75,7 +76,7 @@ export default function StudentRegistrationPage() {
       const user = userCredential.user;
 
       // Send verification email
-      await sendEmailVerification(user);
+      await sendEmailVerification(user, getEmailVerificationActionSettings());
 
       await setDoc(doc(firestore, "userProfiles", user.uid), {
         id: user.uid,
