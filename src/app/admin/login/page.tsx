@@ -54,7 +54,8 @@ export default function AdminLoginPage() {
     setLoading(true);
     setConfigError(null);
 
-    const isCorrectUsername = data.username.trim().toLowerCase() === ADMIN_USERNAME;
+    const enteredIdentifier = data.username.trim().toLowerCase();
+    const isCorrectUsername = enteredIdentifier === ADMIN_USERNAME || enteredIdentifier === ADMIN_EMAIL;
 
     if (!isCorrectUsername) {
       toast({
@@ -197,11 +198,11 @@ export default function AdminLoginPage() {
                   name="username"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Username</FormLabel>
+                      <FormLabel>Admin Identifier</FormLabel>
                       <FormControl>
-                        <Input placeholder={ADMIN_USERNAME} type="text" {...field} />
+                        <Input placeholder={`${ADMIN_USERNAME} or ${ADMIN_EMAIL}`} type="text" {...field} />
                       </FormControl>
-                      <FormDescription>Use the administrator username provided by system owner.</FormDescription>
+                      <FormDescription>Use your admin username or admin email.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
