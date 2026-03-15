@@ -3,13 +3,13 @@
 import { useAuth } from '@/hooks/use-auth';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, query, where, Timestamp, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Calendar, User, Building, Clock, MapPin, MoreVertical, ArrowLeft, CalendarIcon } from 'lucide-react';
+import { Calendar, User, Building, Clock, MapPin, MoreVertical, ArrowLeft, CalendarIcon, Search, CheckCircle2, CalendarDays, CalendarX2 } from 'lucide-react';
 import { Interview } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as DatePickerCalendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -61,6 +63,8 @@ const rescheduleFormSchema = z.object({
 
 type RescheduleFormValues = z.infer<typeof rescheduleFormSchema>;
 
+type StatusFilter = 'All' | Interview['status'];
+
 
 export default function InterviewsPage() {
   const { user, role, loading: authLoading } = useAuth();
@@ -68,6 +72,8 @@ export default function InterviewsPage() {
   const { toast } = useToast();
   const [isEditTimeDialogOpen, setIsEditTimeDialogOpen] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const rescheduleForm = useForm<RescheduleFormValues>({
     resolver: zodResolver(rescheduleFormSchema),
@@ -133,6 +139,43 @@ export default function InterviewsPage() {
         })
     }
   };
+
+  const sortedInterviews = useMemo(() => {
+    if (!interviews) return [];
+    return [...interviews].sort((a, b) => {
+      const aDate = getInterviewDate(a.startTime)?.getTime() ?? 0;
+      const bDate = getInterviewDate(b.startTime)?.getTime() ?? 0;
+      return bDate - aDate;
+    });
+  }, [interviews]);
+
+  const filteredInterviews = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    return sortedInterviews.filter((interview) => {
+      if (statusFilter !== 'All' && interview.status !== statusFilter) return false;
+      if (!normalizedSearch) return true;
+
+      const searchable = [
+        interview.studentName,
+        interview.companyName,
+        interview.interviewerName,
+        interview.location,
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      return searchable.includes(normalizedSearch);
+    });
+  }, [sortedInterviews, searchTerm, statusFilter]);
+
+  const stats = useMemo(() => {
+    const total = sortedInterviews.length;
+    const scheduled = sortedInterviews.filter((item) => item.status === 'Scheduled').length;
+    const completed = sortedInterviews.filter((item) => item.status === 'Completed').length;
+    const noShow = sortedInterviews.filter((item) => item.status === 'No Show').length;
+
+    return { total, scheduled, completed, noShow };
+  }, [sortedInterviews]);
 
   const handleRecallStudent = async (interview: Interview) => {
     if (!db) return;
@@ -312,37 +355,38 @@ export default function InterviewsPage() {
                     </Badge>
                 </div>
                 {role === 'company' && (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="shrink-0">
-                            <MoreVertical className="h-4 w-4" />
+                    <div className="flex items-center gap-2">
+                      {(interview.status === 'Scheduled' || interview.status === 'No Show') && (
+                        <Button variant="outline" size="sm" onClick={() => openEditTimeDialog(interview)}>
+                          Edit Time
                         </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Update Status</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleStatusUpdate(interview.id, 'Completed')}>
-                            Completed
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleStatusUpdate(interview.id, 'No Show')}>
-                            No Show
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleStatusUpdate(interview.id, 'Canceled')} className="text-destructive">
-                            Cancel
-                        </DropdownMenuItem>
-                        {interview.status === 'No Show' && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => openEditTimeDialog(interview)}>
-                              Edit Time
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleRecallStudent(interview)}>
-                              Recall Student
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                      )}
+                      {interview.status === 'No Show' && (
+                        <Button variant="secondary" size="sm" onClick={() => handleRecallStudent(interview)}>
+                          Recall
+                        </Button>
+                      )}
+                      <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="shrink-0">
+                              <MoreVertical className="h-4 w-4" />
+                          </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Update Status</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleStatusUpdate(interview.id, 'Completed')}>
+                              Mark Completed
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleStatusUpdate(interview.id, 'No Show')}>
+                              Mark No Show
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleStatusUpdate(interview.id, 'Canceled')} className="text-destructive">
+                              Cancel Interview
+                          </DropdownMenuItem>
+                          </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                 )}
             </div>
         </CardContent>
@@ -368,6 +412,71 @@ export default function InterviewsPage() {
           <CardDescription>Here are your upcoming and past interviews for the job fair.</CardDescription>
         </CardHeader>
         <CardContent>
+          {!isLoading && (
+            <div className="space-y-4 mb-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card className="border-border/70">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total</p>
+                      <p className="text-xl font-semibold">{stats.total}</p>
+                    </div>
+                    <CalendarDays className="h-5 w-5 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+                <Card className="border-border/70">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Scheduled</p>
+                      <p className="text-xl font-semibold">{stats.scheduled}</p>
+                    </div>
+                    <Clock className="h-5 w-5 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+                <Card className="border-border/70">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Completed</p>
+                      <p className="text-xl font-semibold">{stats.completed}</p>
+                    </div>
+                    <CheckCircle2 className="h-5 w-5 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+                <Card className="border-border/70">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">No Show</p>
+                      <p className="text-xl font-semibold">{stats.noShow}</p>
+                    </div>
+                    <CalendarX2 className="h-5 w-5 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+                <div className="relative w-full md:max-w-sm">
+                  <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Input
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Search student, interviewer, or location"
+                    className="pl-9"
+                  />
+                </div>
+
+                <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+                  <TabsList>
+                    <TabsTrigger value="All">All</TabsTrigger>
+                    <TabsTrigger value="Scheduled">Scheduled</TabsTrigger>
+                    <TabsTrigger value="Completed">Completed</TabsTrigger>
+                    <TabsTrigger value="No Show">No Show</TabsTrigger>
+                    <TabsTrigger value="Canceled">Canceled</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+            </div>
+          )}
+
           {isLoading && (
             <div className="space-y-4">
               <Skeleton className="h-28 w-full" />
@@ -375,9 +484,9 @@ export default function InterviewsPage() {
               <Skeleton className="h-28 w-full" />
             </div>
           )}
-          {!isLoading && interviews && interviews.length > 0 ? (
+          {!isLoading && filteredInterviews.length > 0 ? (
             <div className="space-y-4">
-              {interviews.map((interview) => (
+              {filteredInterviews.map((interview) => (
                 <InterviewCard key={interview.id} interview={interview} />
               ))}
             </div>
@@ -385,9 +494,13 @@ export default function InterviewsPage() {
             !isLoading && (
               <div className="flex flex-col items-center justify-center min-h-[300px] text-center text-muted-foreground border-2 border-dashed rounded-lg">
                 <Calendar className="h-16 w-16 mx-auto" />
-                <h3 className="mt-4 text-lg font-semibold">No interviews scheduled</h3>
+                <h3 className="mt-4 text-lg font-semibold">No interviews found</h3>
                 <p className="mt-2 text-sm max-w-xs mx-auto">
-                  {role === 'company' ? 'You can schedule interviews with students from the main dashboard.' : 'When a company schedules an interview with you, it will appear here.'}
+                  {searchTerm || statusFilter !== 'All'
+                    ? 'Try changing the search or status filter.'
+                    : role === 'company'
+                      ? 'You can schedule interviews with students from the main dashboard.'
+                      : 'When a company schedules an interview with you, it will appear here.'}
                 </p>
               </div>
             )
