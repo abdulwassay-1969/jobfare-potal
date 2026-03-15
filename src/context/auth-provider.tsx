@@ -7,7 +7,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, writeBatch, Firestore, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { useAuth as useFirebaseAuth, useFirestore } from '@/firebase';
 import type { UserRole } from '@/lib/types';
-import { isAdminEmail } from '@/lib/security';
+import { hasAdminClaim } from '@/lib/security';
 
 interface AuthContextType {
   user: User | null;
@@ -30,7 +30,8 @@ export const AuthContext = createContext<AuthContextType>({
  * This is a critical security and initialization function for the unified administrator account.
  */
 async function ensureAdminProfile(db: Firestore, user: User) {
-  if (!isAdminEmail(user.email)) return;
+  const isAdmin = await hasAdminClaim(user);
+  if (!isAdmin) return;
 
   const userProfileRef = doc(db, 'userProfiles', user.uid);
   const adminRef = doc(db, 'admins', user.uid);
@@ -108,6 +109,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (authLoading || !db) return;
 
+    let cancelled = false;
+    let userProfileUnsubscribe: Unsubscribe | null = null;
+    let roleProfileUnsubscribe: Unsubscribe | null = null;
+
     if (!user) {
       setRole(null);
       setProfileStatus(null);
@@ -118,67 +123,73 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     setProfileLoading(true);
 
-    // Handle the unified system Main Admin account
-    if (isAdminEmail(user.email)) {
-      ensureAdminProfile(db, user).finally(() => {
-        setRole('admin');
-        setProfileStatus('approved');
-        setProfileName('Main Administrator');
-        setProfileLoading(false);
-      });
-      return;
-    }
+    const initializeRoleState = async () => {
+      const isAdmin = await hasAdminClaim(user);
+      if (cancelled) return;
 
-    let roleProfileUnsubscribe: Unsubscribe | null = null;
-    
-    const userProfileUnsubscribe = onSnapshot(doc(db, 'userProfiles', user.uid), (userProfileDoc) => {
-      if (roleProfileUnsubscribe) {
-        roleProfileUnsubscribe();
-        roleProfileUnsubscribe = null;
-      }
-
-      if (!userProfileDoc.exists()) {
-        setRole(null);
-        setProfileStatus(null);
-        setProfileName(user.displayName || 'User');
-        setProfileLoading(false);
+      if (isAdmin) {
+        ensureAdminProfile(db, user).finally(() => {
+          if (cancelled) return;
+          setRole('admin');
+          setProfileStatus('approved');
+          setProfileName('Main Administrator');
+          setProfileLoading(false);
+        });
         return;
       }
 
-      const userData = userProfileDoc.data();
-      const currentRole = (userData.roles as UserRole[])?.[0] || null;
-      setRole(currentRole);
-      
-      if (currentRole) {
-        const collectionName = getCollectionNameForRole(currentRole);
-        const profileDocRef = doc(db, collectionName, user.uid);
-        
-        roleProfileUnsubscribe = onSnapshot(profileDocRef, (profileDoc) => {
-          if (profileDoc.exists()) {
-            const profileData = profileDoc.data();
-            setProfileStatus(profileData.status || 'approved');
-            setProfileName(profileData.companyName || profileData.fullName || userData.name);
-          } else {
-            setProfileStatus('pending');
-            setProfileName(userData.name);
-          }
+      userProfileUnsubscribe = onSnapshot(doc(db, 'userProfiles', user.uid), (userProfileDoc) => {
+        if (roleProfileUnsubscribe) {
+          roleProfileUnsubscribe();
+          roleProfileUnsubscribe = null;
+        }
+
+        if (!userProfileDoc.exists()) {
+          setRole(null);
+          setProfileStatus(null);
+          setProfileName(user.displayName || 'User');
           setProfileLoading(false);
-        }, (error) => {
-          console.error(`Error loading ${currentRole} details:`, error);
+          return;
+        }
+
+        const userData = userProfileDoc.data();
+        const currentRole = (userData.roles as UserRole[])?.[0] || null;
+        setRole(currentRole);
+
+        if (currentRole) {
+          const collectionName = getCollectionNameForRole(currentRole);
+          const profileDocRef = doc(db, collectionName, user.uid);
+
+          roleProfileUnsubscribe = onSnapshot(profileDocRef, (profileDoc) => {
+            if (profileDoc.exists()) {
+              const profileData = profileDoc.data();
+              setProfileStatus(profileData.status || 'approved');
+              setProfileName(profileData.companyName || profileData.fullName || userData.name);
+            } else {
+              setProfileStatus('pending');
+              setProfileName(userData.name);
+            }
+            setProfileLoading(false);
+          }, (error) => {
+            console.error(`Error loading ${currentRole} details:`, error);
+            setProfileLoading(false);
+          });
+        } else {
+          setProfileStatus(null);
+          setProfileName(userData.name);
           setProfileLoading(false);
-        });
-      } else {
-        setProfileStatus(null);
-        setProfileName(userData.name);
+        }
+      }, (error) => {
+        console.error("Error loading user identity:", error);
         setProfileLoading(false);
-      }
-    }, (error) => {
-      console.error("Error loading user identity:", error);
-      setProfileLoading(false);
-    });
+      });
+    };
+
+    initializeRoleState();
 
     return () => {
-      userProfileUnsubscribe();
+      cancelled = true;
+      if (userProfileUnsubscribe) userProfileUnsubscribe();
       if (roleProfileUnsubscribe) roleProfileUnsubscribe();
     };
   }, [user, db, authLoading]);

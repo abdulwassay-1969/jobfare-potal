@@ -60,6 +60,11 @@ In Firebase Console:
 	- Create admin account manually in Firebase Authentication users
 	- Do not rely on frontend auto-creation
 	- Rotate admin password and keep it private
+	- Set custom admin claim:
+
+	  GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json npm run set-admin-claim -- abdulwassaynisar@gmail.com
+
+	- After setting claim, sign out and sign in again for token refresh
 
 5. App Check (recommended)
 	- Firebase Console → Build → App Check

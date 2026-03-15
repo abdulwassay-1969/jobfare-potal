@@ -12,8 +12,8 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Unified Main Admin authority check
-      return isSignedIn() && request.auth.token.email == 'abdulwassaynisar@gmail.com';
+      // Custom claim based admin authority
+      return isSignedIn() && request.auth.token.admin == true;
     }
 
     function isOwner(userId) {
@@ -63,8 +63,8 @@ service cloud.firestore {
 
     match /userProfiles/{userProfileId} {
       allow get: if isSignedIn();
-      allow create: if isOwner(userProfileId);
-      allow update: if isExistingOwner(userProfileId);
+      allow create: if isOwner(userProfileId) && !('admin' in request.resource.data.roles);
+      allow update: if isExistingOwner(userProfileId) && !('admin' in request.resource.data.roles);
     }
 
     match /students/{studentId} {
