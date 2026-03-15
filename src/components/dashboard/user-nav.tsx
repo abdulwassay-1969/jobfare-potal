@@ -25,7 +25,8 @@ export function UserNav() {
 
   const handleLogout = async () => {
     await signOut(firebaseAuth);
-    router.push('/'); // Redirect to the main portal selection page
+    router.replace('/');
+    router.refresh();
   };
 
   if (!user) {

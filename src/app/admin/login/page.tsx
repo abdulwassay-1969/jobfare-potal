@@ -126,6 +126,7 @@ export default function AdminLoginPage() {
 
   const handleLogout = async () => {
     await signOut(firebaseAuth);
+    router.replace('/admin/login');
     router.refresh();
   };
 

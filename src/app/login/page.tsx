@@ -152,42 +152,27 @@ export default function LoginPage() {
   };
 
   const handleLogout = async () => {
-    await signOut(firebaseAuth);
-    router.push('/'); 
+    try {
+      await signOut(firebaseAuth);
+      toast({
+        title: 'Signed Out',
+        description: 'You can now sign in with a different account.',
+      });
+      router.replace('/login');
+      router.refresh();
+    } catch {
+      toast({
+        title: 'Sign Out Failed',
+        description: 'Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <GraduationCap className="h-12 w-12 text-primary animate-pulse" />
-      </div>
-    );
-  }
-
-  if (user && !user.isAnonymous && role) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md shadow-lg border-primary/20">
-          <CardHeader className="text-center">
-            <GraduationCap className="h-12 w-12 text-primary mx-auto mb-4" />
-            <CardTitle>Active Session Found</CardTitle>
-            <CardDescription className="pt-2">
-              You are signed in as <span className="font-bold text-foreground">{profileName || user.email}</span>.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button asChild className="w-full h-12 text-base">
-              <Link href="/dashboard">
-                <LayoutDashboard className="mr-2 h-5 w-5" />
-                Go to My Dashboard
-              </Link>
-            </Button>
-            <Button variant="outline" className="w-full h-12 text-base border-destructive/20 text-destructive hover:bg-destructive/10" onClick={handleLogout}>
-              <LogOut className="mr-2 h-5 w-5" />
-              Sign Out & Use Different Account
-            </Button>
-          </CardContent>
-        </Card>
       </div>
     );
   }
@@ -211,6 +196,26 @@ export default function LoginPage() {
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Provider Disabled</AlertTitle>
                 <AlertDescription>{configError}</AlertDescription>
+              </Alert>
+            )}
+            {user && !user.isAnonymous && role && (
+              <Alert>
+                <LayoutDashboard className="h-4 w-4" />
+                <AlertTitle>Already signed in</AlertTitle>
+                <AlertDescription className="space-y-3">
+                  <p>
+                    Current account: <span className="font-semibold text-foreground">{profileName || user.email}</span>
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Button asChild size="sm">
+                      <Link href="/dashboard">Go to Dashboard</Link>
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={handleLogout}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Switch Account
+                    </Button>
+                  </div>
+                </AlertDescription>
               </Alert>
             )}
             <Form {...form}>
