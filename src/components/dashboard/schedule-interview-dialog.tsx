@@ -93,13 +93,18 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
   
   // 1. Get all interviews for this student (or their team)
   const studentInterviewsQuery = useMemoFirebase(() => {
-        if (!firestore || !open || safeTeamMemberIds.length === 0) return null;
+        if (!firestore || !open || !user || safeTeamMemberIds.length === 0) return null;
+
+        // Companies cannot read other companies' interview records for a student
+        // under current Firestore rules, so skip this query outside student context.
+        if (user.uid !== student.id) return null;
+
         try {
             return query(collection(firestore, 'interviews'), where('studentId', 'in', safeTeamMemberIds));
         } catch {
             return null;
         }
-    }, [firestore, open, safeTeamMemberIds]);
+    }, [firestore, open, safeTeamMemberIds, user, student.id]);
 
   // 2. Get all interviews for this company
   const companyInterviewsQuery = useMemoFirebase(() => {
@@ -398,7 +403,9 @@ export function ScheduleInterviewDialog({ student, open, onOpenChange }: Schedul
                 <div className="border-l pl-6 space-y-4">
                     <h4 className="text-sm font-semibold flex items-center gap-2"><Clock className="h-4 w-4" /> Student Schedule ({selectedDate ? format(selectedDate, 'MMM d') : 'N/A'})</h4>
                     <div className="space-y-2">
-                        {studentDayInterviews.length > 0 ? (
+                        {user && user.uid !== student.id ? (
+                            <p className="text-xs text-muted-foreground py-4 text-center">Student-wide schedule is not visible in company mode.</p>
+                        ) : studentDayInterviews.length > 0 ? (
                             studentDayInterviews.map((interview) => (
                                 <div key={interview.id} className="flex items-center justify-between text-xs p-2 rounded bg-muted/50 border">
                                     <span className="font-medium">{(() => {
