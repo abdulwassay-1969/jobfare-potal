@@ -17,7 +17,9 @@ import {
   MapPin,
   LayoutGrid,
   QrCode as QrCodeIcon,
-  ClipboardCheck
+  ClipboardCheck,
+  Star,
+  MessageSquare
 } from "lucide-react"
 import {
   SidebarMenu,
@@ -40,6 +42,7 @@ const navItems = {
     { href: "/dashboard/all-volunteers", icon: ClipboardList, label: "All Volunteers" },
     { href: "/dashboard/all-companies", icon: Building, label: "All Companies" },
     { href: "/dashboard/all-student-spots", icon: ClipboardList, label: "Export Spot List" },
+    { href: "/dashboard/admin/reviews", icon: MessageSquare, label: "Portal Reviews" },
   ],
   student: [
     { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -53,6 +56,7 @@ const navItems = {
     { href: "/dashboard/projects", icon: FolderKanban, label: "Student Projects" },
     { href: "/dashboard/shortlist", icon: ListChecks, label: "Shortlisted" },
     { href: "/dashboard/interviews", icon: Calendar, label: "My Interviews" },
+    { href: "/dashboard/portal-review", icon: Star, label: "Rate This Portal" },
   ],
   volunteer: [
      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },

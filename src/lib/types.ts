@@ -88,6 +88,16 @@ export type EventState = {
     updatedAt: Timestamp;
 }
 
+export type PortalReview = {
+    id: string;
+    companyId: string;
+    companyName: string;
+    rating: number; // 1-5
+    feedback: string;
+    suggestions?: string;
+    createdAt: Timestamp;
+};
+
 export type Placement = {
   id: string;
   studentId: string;
