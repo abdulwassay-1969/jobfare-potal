@@ -25,9 +25,9 @@ export function BreakControl() {
     volunteer: ''
   });
   const [targetRoles, setTargetRoles] = useState({
-    company: true,
-    student: true,
-    volunteer: true,
+    company: false,
+    student: false,
+    volunteer: false,
   });
 
   const eventStateRef = useMemoFirebase(() => {
@@ -45,9 +45,9 @@ export function BreakControl() {
         volunteer: eventState.messages?.volunteer || ''
       });
       setTargetRoles({
-        company: eventState.targetRoles?.company ?? true,
-        student: eventState.targetRoles?.student ?? true,
-        volunteer: eventState.targetRoles?.volunteer ?? true,
+        company: eventState.targetRoles?.company ?? false,
+        student: eventState.targetRoles?.student ?? false,
+        volunteer: eventState.targetRoles?.volunteer ?? false,
       });
     }
   }, [eventState]);
