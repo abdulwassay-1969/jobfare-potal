@@ -53,6 +53,7 @@ const adminNavGroups: NavGroup[] = [
     title: "Volunteers",
     items: [
       { href: "/dashboard/volunteers", icon: Users, label: "Manage Volunteers" },
+      { href: "/dashboard/volunteer-assignments", icon: MapPin, label: "Volunteer Assignments" },
       { href: "/dashboard/all-volunteers", icon: ClipboardList, label: "All Volunteers" },
     ],
   },
