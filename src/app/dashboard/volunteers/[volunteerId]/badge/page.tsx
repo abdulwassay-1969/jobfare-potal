@@ -47,8 +47,27 @@ export default function VolunteerBadgePage() {
     );
   }, [db, volunteer]);
 
-  const { data: assignments, isLoading: assignmentLoading } = useCollection<RoomAssignment>(assignmentQuery);
-  const assignment = assignments?.[0];
+  const assignmentByArrayQuery = useMemoFirebase(() => {
+    if (!db || !volunteer || volunteer.assignedRole !== 'Company Assistance') {
+      return null;
+    }
+    const jobFairId = volunteer.jobFairId || 'main-job-fair-2024';
+    return query(
+      collection(db, 'jobFairs', jobFairId, 'roomAssignments'),
+      where('volunteerIds', 'array-contains', volunteer.id)
+    );
+  }, [db, volunteer]);
+
+  const { data: legacyAssignments, isLoading: legacyAssignmentLoading } = useCollection<RoomAssignment>(assignmentQuery);
+  const { data: multiAssignments, isLoading: multiAssignmentLoading } = useCollection<RoomAssignment>(assignmentByArrayQuery);
+  const assignment = React.useMemo(() => {
+    const merged = [...(multiAssignments || []), ...(legacyAssignments || [])];
+    const uniqueAssignments = merged.filter(
+      (item, index, self) => index === self.findIndex((candidate) => candidate.id === item.id)
+    );
+
+    return uniqueAssignments[0];
+  }, [legacyAssignments, multiAssignments]);
 
   const downloadBadge = () => {
     if (badgeRef.current) {
@@ -65,7 +84,7 @@ export default function VolunteerBadgePage() {
     }
   };
 
-  const isLoading = !volunteerId || volunteerLoading || (volunteer?.assignedRole === 'Company Assistance' && assignmentLoading);
+  const isLoading = !volunteerId || volunteerLoading || (volunteer?.assignedRole === 'Company Assistance' && (legacyAssignmentLoading || multiAssignmentLoading));
 
   if (isLoading) {
     return (

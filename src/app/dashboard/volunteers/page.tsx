@@ -108,8 +108,12 @@ export default function VolunteersPage() {
 
     try {
       const roomAssignmentsRef = collection(db, 'jobFairs', 'main-job-fair-2024', 'roomAssignments');
-      const roomAssignmentsQuery = query(roomAssignmentsRef, where('volunteerId', '==', volunteer.id));
-      const roomAssignmentsSnapshot = await getDocs(roomAssignmentsQuery);
+      const legacyAssignmentsQuery = query(roomAssignmentsRef, where('volunteerId', '==', volunteer.id));
+      const multiAssignmentsQuery = query(roomAssignmentsRef, where('volunteerIds', 'array-contains', volunteer.id));
+      const [legacyAssignmentsSnapshot, multiAssignmentsSnapshot] = await Promise.all([
+        getDocs(legacyAssignmentsQuery),
+        getDocs(multiAssignmentsQuery),
+      ]);
 
       const batch = writeBatch(db);
       const volunteerRef = doc(db, 'volunteers', volunteer.id);
@@ -118,10 +122,31 @@ export default function VolunteersPage() {
       batch.delete(volunteerRef);
       batch.delete(profileRef);
 
-      roomAssignmentsSnapshot.forEach((assignmentDoc) => {
+      const assignmentDocs = new Map<string, typeof legacyAssignmentsSnapshot.docs[number]>();
+      [...legacyAssignmentsSnapshot.docs, ...multiAssignmentsSnapshot.docs].forEach((assignmentDoc) => {
+        assignmentDocs.set(assignmentDoc.id, assignmentDoc);
+      });
+
+      assignmentDocs.forEach((assignmentDoc) => {
+        const assignmentData = assignmentDoc.data() as {
+          volunteerIds?: string[];
+          volunteerNames?: string[];
+          volunteerId?: string;
+          volunteerName?: string;
+        };
+        const pairedVolunteers = (assignmentData.volunteerIds || []).map((id, index) => ({
+          id,
+          name: assignmentData.volunteerNames?.[index] || '',
+        }));
+        const remainingVolunteers = pairedVolunteers.filter((member) => member.id !== volunteer.id);
+        const remainingIds = remainingVolunteers.map((member) => member.id);
+        const remainingNames = remainingVolunteers.map((member) => member.name);
+
         batch.update(assignmentDoc.ref, {
-          volunteerId: '',
-          volunteerName: '',
+          volunteerId: remainingIds[0] || '',
+          volunteerName: remainingNames[0] || '',
+          volunteerIds: remainingIds,
+          volunteerNames: remainingNames,
           updatedAt: serverTimestamp(),
         });
       });

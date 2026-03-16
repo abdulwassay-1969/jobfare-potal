@@ -164,6 +164,8 @@ export type RoomAssignment = {
     companyName: string;
     volunteerId?: string;
     volunteerName?: string;
+    volunteerIds?: string[];
+    volunteerNames?: string[];
     jobFairId: string;
     roomNumber: string;
     checkInStatus: boolean;

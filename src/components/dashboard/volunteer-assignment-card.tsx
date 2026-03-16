@@ -27,9 +27,26 @@ export function VolunteerAssignmentCard({ volunteerId }: { volunteerId: string }
         where('volunteerId', '==', volunteerId)
     );
   }, [db, volunteerId]);
-  
-  const { data: assignments, isLoading: assignmentLoading } = useCollection<RoomAssignment>(assignmentsQuery);
-  const assignment = assignments?.[0];
+
+  const assignmentsByArrayQuery = useMemoFirebase(() => {
+    if (!db || !volunteerId) return null;
+    return query(
+      collection(db, 'jobFairs', 'main-job-fair-2024', 'roomAssignments'),
+      where('volunteerIds', 'array-contains', volunteerId)
+    );
+  }, [db, volunteerId]);
+
+  const { data: legacyAssignments, isLoading: legacyAssignmentLoading } = useCollection<RoomAssignment>(assignmentsQuery);
+  const { data: multiAssignments, isLoading: multiAssignmentLoading } = useCollection<RoomAssignment>(assignmentsByArrayQuery);
+
+  const assignment = React.useMemo(() => {
+    const merged = [...(multiAssignments || []), ...(legacyAssignments || [])];
+    const uniqueAssignments = merged.filter(
+      (item, index, self) => index === self.findIndex((candidate) => candidate.id === item.id)
+    );
+
+    return uniqueAssignments[0];
+  }, [legacyAssignments, multiAssignments]);
 
   // 2. Based on the assignment, find the company details
   const companyRef = useMemoFirebase(() => {
@@ -39,7 +56,7 @@ export function VolunteerAssignmentCard({ volunteerId }: { volunteerId: string }
 
   const { data: company, isLoading: companyLoading } = useDoc<Company>(companyRef);
 
-  const isLoading = assignmentLoading || (assignment && companyLoading);
+  const isLoading = legacyAssignmentLoading || multiAssignmentLoading || (assignment && companyLoading);
   
   const handleCheckIn = async () => {
     if (!db || !assignment || isCheckingIn) return;

@@ -18,6 +18,7 @@ import {
   FormControl,
   FormField,
   FormItem,
+  FormDescription,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
@@ -27,11 +28,11 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Company, Volunteer, RoomAssignment } from '@/lib/types';
-import { Skeleton } from '../ui/skeleton';
+import { Checkbox } from '../ui/checkbox';
 
 const assignmentFormSchema = z.object({
   companyId: z.string().min(1, 'Company is required.'),
-  volunteerId: z.string().optional(),
+  volunteerIds: z.array(z.string()).optional(),
   roomNumber: z.string().min(1, 'Room number is required.'),
 });
 
@@ -57,7 +58,7 @@ export function AssignRoomDialog({ open, onOpenChange, companies, volunteers, ex
     resolver: zodResolver(assignmentFormSchema),
     defaultValues: {
       companyId: '',
-      volunteerId: '',
+      volunteerIds: [],
       roomNumber: '',
     },
   });
@@ -66,13 +67,13 @@ export function AssignRoomDialog({ open, onOpenChange, companies, volunteers, ex
     if (existingAssignment) {
       form.reset({
         companyId: existingAssignment.companyId,
-        volunteerId: existingAssignment.volunteerId || '',
+        volunteerIds: existingAssignment.volunteerIds || (existingAssignment.volunteerId ? [existingAssignment.volunteerId] : []),
         roomNumber: existingAssignment.roomNumber,
       });
     } else {
       form.reset({
         companyId: '',
-        volunteerId: '',
+        volunteerIds: [],
         roomNumber: '',
       });
     }
@@ -87,7 +88,8 @@ export function AssignRoomDialog({ open, onOpenChange, companies, volunteers, ex
       setLoading(false);
       return;
     }
-    const selectedVolunteer = volunteers.find(v => v.id === data.volunteerId);
+    const selectedVolunteers = volunteers.filter(v => data.volunteerIds?.includes(v.id));
+    const primaryVolunteer = selectedVolunteers[0];
 
     const assignmentId = existingAssignment ? existingAssignment.id : selectedCompany.id;
     const docRef = doc(db, 'jobFairs', jobFairId, 'roomAssignments', assignmentId);
@@ -95,8 +97,10 @@ export function AssignRoomDialog({ open, onOpenChange, companies, volunteers, ex
     let assignmentData: Partial<RoomAssignment> & { createdAt?: any, updatedAt?: any } = {
       companyId: selectedCompany.id,
       companyName: selectedCompany.companyName,
-      volunteerId: selectedVolunteer?.id || '',
-      volunteerName: selectedVolunteer?.fullName || '',
+      volunteerId: primaryVolunteer?.id || '',
+      volunteerName: primaryVolunteer?.fullName || '',
+      volunteerIds: selectedVolunteers.map((volunteer) => volunteer.id),
+      volunteerNames: selectedVolunteers.map((volunteer) => volunteer.fullName),
       roomNumber: data.roomNumber,
       jobFairId: jobFairId,
       checkInStatus: existingAssignment?.checkInStatus || false,
@@ -141,7 +145,7 @@ export function AssignRoomDialog({ open, onOpenChange, companies, volunteers, ex
         <DialogHeader>
           <DialogTitle>{existingAssignment ? 'Edit Assignment' : 'Create New Assignment'}</DialogTitle>
           <DialogDescription>
-            Assign a room and a volunteer to a company for the job fair.
+            Assign a room and one or more volunteers to a company for the job fair.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -168,21 +172,41 @@ export function AssignRoomDialog({ open, onOpenChange, companies, volunteers, ex
             />
             <FormField
               control={form.control}
-              name="volunteerId"
+              name="volunteerIds"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Volunteer (Optional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a volunteer" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {volunteers.map(v => <SelectItem key={v.id} value={v.id}>{v.fullName}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <FormLabel>Assigned Volunteers</FormLabel>
+                  <FormDescription>Select one or more volunteers for this company.</FormDescription>
+                  <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border p-3">
+                    {volunteers.length > 0 ? (
+                      volunteers.map((volunteer) => {
+                        const checked = field.value?.includes(volunteer.id) ?? false;
+
+                        return (
+                          <label key={volunteer.id} className="flex cursor-pointer items-start gap-3 rounded-md border p-3 hover:bg-muted/40">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(isChecked) => {
+                                const currentValues = field.value || [];
+                                const nextValues = isChecked
+                                  ? [...currentValues, volunteer.id]
+                                  : currentValues.filter((id) => id !== volunteer.id);
+                                field.onChange(nextValues);
+                              }}
+                            />
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium leading-none">{volunteer.fullName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {volunteer.department} • {volunteer.preferredRole}
+                              </p>
+                            </div>
+                          </label>
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No approved volunteers available.</p>
+                    )}
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

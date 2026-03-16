@@ -81,7 +81,19 @@ export default function RoomAssignmentsPage() {
       <TableCell>
         <Badge variant="outline" className="font-mono">{assignment.roomNumber}</Badge>
       </TableCell>
-      <TableCell>{assignment.volunteerName || <span className="text-muted-foreground italic">Not Assigned</span>}</TableCell>
+      <TableCell>
+        {assignment.volunteerNames?.length ? (
+          <div className="space-y-1">
+            {assignment.volunteerNames.map((name) => (
+              <div key={name} className="text-sm font-medium">{name}</div>
+            ))}
+          </div>
+        ) : assignment.volunteerName ? (
+          assignment.volunteerName
+        ) : (
+          <span className="text-muted-foreground italic">Not Assigned</span>
+        )}
+      </TableCell>
       <TableCell>
         {assignment.companyLeftStatus ? (
           <Badge variant="destructive">Left</Badge>
@@ -137,7 +149,7 @@ export default function RoomAssignmentsPage() {
                 <TableRow>
                   <TableHead>Company</TableHead>
                   <TableHead>Room</TableHead>
-                  <TableHead>Assigned Volunteer</TableHead>
+                  <TableHead>Assigned Volunteers</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead><span className="sr-only">Actions</span></TableHead>
                 </TableRow>
