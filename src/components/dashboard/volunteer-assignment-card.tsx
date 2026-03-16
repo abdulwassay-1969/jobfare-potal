@@ -16,6 +16,8 @@ export function VolunteerAssignmentCard({ volunteerId }: { volunteerId: string }
   const { toast } = useToast();
   const [isCheckingIn, setIsCheckingIn] = React.useState(false);
   const [isMarkingLeft, setIsMarkingLeft] = React.useState(false);
+  const [isUndoingCheckIn, setIsUndoingCheckIn] = React.useState(false);
+  const [isUndoingLeft, setIsUndoingLeft] = React.useState(false);
 
   // 1. Find the room assignment for this volunteer
   const assignmentsQuery = useMemoFirebase(() => {
@@ -182,6 +184,158 @@ export function VolunteerAssignmentCard({ volunteerId }: { volunteerId: string }
     }
   };
 
+  const handleUndoCheckIn = async () => {
+    if (!db || !assignment || isUndoingCheckIn) return;
+    setIsUndoingCheckIn(true);
+    const assignmentRef = doc(db, 'jobFairs', 'main-job-fair-2024', 'roomAssignments', assignment.id);
+
+    try {
+      const result = await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(assignmentRef);
+
+        if (!snapshot.exists()) {
+          return 'not-found';
+        }
+
+        const current = snapshot.data() as Partial<RoomAssignment>;
+
+        if (!current.checkInStatus) {
+          return 'already-undone';
+        }
+
+        if (current.checkInMarkedByVolunteerId && current.checkInMarkedByVolunteerId !== volunteerId) {
+          return 'not-owner';
+        }
+
+        transaction.update(assignmentRef, {
+          checkInStatus: false,
+          checkInTime: null,
+          checkInMarkedByVolunteerId: '',
+        });
+
+        return 'updated';
+      });
+
+      if (result === 'updated') {
+        toast({
+          title: 'Check-in Reverted',
+          description: `${assignment.companyName} check-in has been undone.`,
+        });
+      } else if (result === 'not-owner') {
+        toast({
+          title: 'Action Restricted',
+          description: 'Only the volunteer who marked check-in can undo it.',
+          variant: 'destructive',
+        });
+      } else if (result === 'already-undone') {
+        toast({
+          title: 'Already Reverted',
+          description: 'Check-in is already not marked.',
+        });
+      } else {
+        toast({
+          title: 'Assignment Not Found',
+          description: 'Could not find this assignment record.',
+          variant: 'destructive',
+        });
+      }
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: assignmentRef.path,
+        operation: 'update',
+        requestResourceData: {
+          checkInStatus: false,
+          checkInTime: null,
+          checkInMarkedByVolunteerId: '',
+        },
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      toast({
+        title: 'Undo Failed',
+        description: 'Could not undo check-in. You may not have permission.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUndoingCheckIn(false);
+    }
+  };
+
+  const handleUndoLeft = async () => {
+    if (!db || !assignment || isUndoingLeft) return;
+    setIsUndoingLeft(true);
+    const assignmentRef = doc(db, 'jobFairs', 'main-job-fair-2024', 'roomAssignments', assignment.id);
+
+    try {
+      const result = await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(assignmentRef);
+
+        if (!snapshot.exists()) {
+          return 'not-found';
+        }
+
+        const current = snapshot.data() as Partial<RoomAssignment>;
+
+        if (!current.companyLeftStatus) {
+          return 'already-undone';
+        }
+
+        if (current.companyLeftMarkedByVolunteerId && current.companyLeftMarkedByVolunteerId !== volunteerId) {
+          return 'not-owner';
+        }
+
+        transaction.update(assignmentRef, {
+          companyLeftStatus: false,
+          companyLeftTime: null,
+          companyLeftMarkedByVolunteerId: '',
+        });
+
+        return 'updated';
+      });
+
+      if (result === 'updated') {
+        toast({
+          title: 'Exit Reverted',
+          description: `${assignment.companyName} exit status has been undone.`,
+        });
+      } else if (result === 'not-owner') {
+        toast({
+          title: 'Action Restricted',
+          description: 'Only the volunteer who marked company exit can undo it.',
+          variant: 'destructive',
+        });
+      } else if (result === 'already-undone') {
+        toast({
+          title: 'Already Reverted',
+          description: 'Company is already not marked as left.',
+        });
+      } else {
+        toast({
+          title: 'Assignment Not Found',
+          description: 'Could not find this assignment record.',
+          variant: 'destructive',
+        });
+      }
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: assignmentRef.path,
+        operation: 'update',
+        requestResourceData: {
+          companyLeftStatus: false,
+          companyLeftTime: null,
+          companyLeftMarkedByVolunteerId: '',
+        },
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      toast({
+        title: 'Undo Failed',
+        description: 'Could not undo company exit. You may not have permission.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUndoingLeft(false);
+    }
+  };
+
 
   if (isLoading) {
       return (
@@ -252,10 +406,15 @@ export function VolunteerAssignmentCard({ volunteerId }: { volunteerId: string }
       <CardFooter>
         <div className="flex flex-wrap items-center gap-2">
           {assignment.checkInStatus ? (
-            <div className="flex items-center text-green-600 font-semibold p-2 rounded-md bg-green-500/10">
-              <CheckCircle className="mr-2 h-5 w-5" />
-              Company Checked In
-            </div>
+            <>
+              <div className="flex items-center text-green-600 font-semibold p-2 rounded-md bg-green-500/10">
+                <CheckCircle className="mr-2 h-5 w-5" />
+                Company Checked In
+              </div>
+              <Button variant="outline" onClick={handleUndoCheckIn} disabled={isUndoingCheckIn}>
+                {isUndoingCheckIn ? 'Undoing...' : 'Undo Check-in'}
+              </Button>
+            </>
           ) : (
             <Button onClick={handleCheckIn} disabled={isCheckingIn || assignment.companyLeftStatus}>
               <UserCheck className="mr-2 h-4 w-4" />
@@ -264,10 +423,15 @@ export function VolunteerAssignmentCard({ volunteerId }: { volunteerId: string }
           )}
 
           {assignment.companyLeftStatus ? (
-            <div className="flex items-center font-semibold p-2 rounded-md bg-destructive/10 text-destructive">
-              <LogOut className="mr-2 h-5 w-5" />
-              Company Marked as Left
-            </div>
+            <>
+              <div className="flex items-center font-semibold p-2 rounded-md bg-destructive/10 text-destructive">
+                <LogOut className="mr-2 h-5 w-5" />
+                Company Marked as Left
+              </div>
+              <Button variant="outline" onClick={handleUndoLeft} disabled={isUndoingLeft}>
+                {isUndoingLeft ? 'Undoing...' : 'Undo Exit'}
+              </Button>
+            </>
           ) : (
             <Button variant="destructive" onClick={handleMarkLeft} disabled={isMarkingLeft}>
               <LogOut className="mr-2 h-4 w-4" />
