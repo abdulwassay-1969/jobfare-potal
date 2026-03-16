@@ -56,7 +56,7 @@ service cloud.firestore {
         && request.resource.data.checkInMarkedByVolunteerId == request.auth.uid
         && request.resource.data.companyLeftStatus == resource.data.companyLeftStatus
         && request.resource.data.companyLeftTime == resource.data.companyLeftTime
-        && request.resource.data.companyLeftMarkedByVolunteerId == resource.data.companyLeftMarkedByVolunteerId;
+        && request.resource.data.companyLeftMarkedByVolunteerId == (resource.data.companyLeftMarkedByVolunteerId is string ? resource.data.companyLeftMarkedByVolunteerId : '');
     }
 
     function isValidVolunteerCompanyLeftUpdate() {
@@ -65,7 +65,7 @@ service cloud.firestore {
         && request.resource.data.companyLeftMarkedByVolunteerId == request.auth.uid
         && request.resource.data.checkInStatus == resource.data.checkInStatus
         && request.resource.data.checkInTime == resource.data.checkInTime
-        && request.resource.data.checkInMarkedByVolunteerId == resource.data.checkInMarkedByVolunteerId;
+        && request.resource.data.checkInMarkedByVolunteerId == (resource.data.checkInMarkedByVolunteerId is string ? resource.data.checkInMarkedByVolunteerId : '');
     }
 
     // --------------------------------------------------------------------------------
