@@ -35,6 +35,39 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/companies/$(userId));
     }
 
+    function isAssignedVolunteerForAssignment() {
+      return isSignedIn() && resource.data.volunteerId == request.auth.uid;
+    }
+
+    function changedRoomAssignmentStatusFieldsOnly() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        'checkInStatus',
+        'checkInTime',
+        'checkInMarkedByVolunteerId',
+        'companyLeftStatus',
+        'companyLeftTime',
+        'companyLeftMarkedByVolunteerId'
+      ]);
+    }
+
+    function isValidVolunteerCheckInUpdate() {
+      return request.resource.data.checkInStatus == true
+        && resource.data.checkInStatus != true
+        && request.resource.data.checkInMarkedByVolunteerId == request.auth.uid
+        && request.resource.data.companyLeftStatus == resource.data.companyLeftStatus
+        && request.resource.data.companyLeftTime == resource.data.companyLeftTime
+        && request.resource.data.companyLeftMarkedByVolunteerId == resource.data.companyLeftMarkedByVolunteerId;
+    }
+
+    function isValidVolunteerCompanyLeftUpdate() {
+      return request.resource.data.companyLeftStatus == true
+        && resource.data.companyLeftStatus != true
+        && request.resource.data.companyLeftMarkedByVolunteerId == request.auth.uid
+        && request.resource.data.checkInStatus == resource.data.checkInStatus
+        && request.resource.data.checkInTime == resource.data.checkInTime
+        && request.resource.data.checkInMarkedByVolunteerId == resource.data.checkInMarkedByVolunteerId;
+    }
+
     // --------------------------------------------------------------------------------
     // Global Admin Override (CRITICAL: MUST BE AT TOP)
     // --------------------------------------------------------------------------------
@@ -106,6 +139,9 @@ service cloud.firestore {
     match /jobFairs/{jobFairId}/roomAssignments/{roomAssignmentId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
+      allow update: if isAssignedVolunteerForAssignment()
+        && changedRoomAssignmentStatusFieldsOnly()
+        && (isValidVolunteerCheckInUpdate() || isValidVolunteerCompanyLeftUpdate());
     }
 
     match /jobFairs/{jobFairId}/projectSpotAssignments/{assignmentId} {
