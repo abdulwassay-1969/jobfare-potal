@@ -44,11 +44,7 @@ export function BreakControl() {
         student: eventState.messages?.student || '',
         volunteer: eventState.messages?.volunteer || ''
       });
-      setTargetRoles({
-        company: eventState.targetRoles?.company ?? false,
-        student: eventState.targetRoles?.student ?? false,
-        volunteer: eventState.targetRoles?.volunteer ?? false,
-      });
+      // Intentionally NOT restoring targetRoles — always start with nothing selected
     }
   }, [eventState]);
 
