@@ -6,7 +6,9 @@ import {
   query,
   where,
   doc,
+  getDocs,
   updateDoc,
+  writeBatch,
   Timestamp,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -105,6 +107,50 @@ export default function ManageStudentsPage() {
     });
   };
 
+  const deleteStudentPermanently = async (student: Student) => {
+    if (!db) return;
+
+    const confirmed = window.confirm(
+      `Permanently delete ${student.fullName}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const spotAssignmentsRef = collection(db, 'jobFairs', 'main-job-fair-2024', 'projectSpotAssignments');
+      const spotAssignmentsQuery = query(spotAssignmentsRef, where('studentId', '==', student.id));
+      const spotAssignmentsSnapshot = await getDocs(spotAssignmentsQuery);
+
+      const batch = writeBatch(db);
+      const studentRef = doc(db, 'students', student.id);
+      const profileRef = doc(db, 'userProfiles', student.id);
+
+      batch.delete(studentRef);
+      batch.delete(profileRef);
+      spotAssignmentsSnapshot.forEach((assignmentDoc) => {
+        batch.delete(assignmentDoc.ref);
+      });
+
+      await batch.commit();
+
+      toast({
+        title: 'Student Deleted',
+        description: `${student.fullName} has been permanently removed.`,
+      });
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: `students/${student.id}`,
+        operation: 'delete',
+        requestResourceData: { studentId: student.id },
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      toast({
+        title: 'Delete Failed',
+        description: 'Could not permanently delete this student.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const StudentRow = ({ student }: { student: Student }) => (
     <TableRow key={student.id}>
       <TableCell className="font-medium">{student.fullName}</TableCell>
@@ -162,6 +208,10 @@ export default function ManageStudentsPage() {
                 Move to Pending
               </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-red-600" onClick={() => void deleteStudentPermanently(student)}>
+              Delete Permanently
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>

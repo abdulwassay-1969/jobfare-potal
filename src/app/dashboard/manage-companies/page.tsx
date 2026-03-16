@@ -7,6 +7,7 @@ import {
   where,
   doc,
   updateDoc,
+  writeBatch,
   Timestamp,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -93,6 +94,44 @@ export default function ManageCompaniesPage() {
     });
   };
 
+  const deleteCompanyPermanently = async (company: Company) => {
+    if (!db) return;
+
+    const confirmed = window.confirm(
+      `Permanently delete ${company.companyName}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    const batch = writeBatch(db);
+    const companyRef = doc(db, 'companies', company.id);
+    const profileRef = doc(db, 'userProfiles', company.id);
+    const roomAssignmentRef = doc(db, 'jobFairs', 'main-job-fair-2024', 'roomAssignments', company.id);
+
+    batch.delete(companyRef);
+    batch.delete(profileRef);
+    batch.delete(roomAssignmentRef);
+
+    try {
+      await batch.commit();
+      toast({
+        title: 'Company Deleted',
+        description: `${company.companyName} has been permanently removed.`,
+      });
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: companyRef.path,
+        operation: 'delete',
+        requestResourceData: { companyId: company.id },
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      toast({
+        title: 'Delete Failed',
+        description: 'Could not permanently delete this company.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const CompanyRow = ({ company }: { company: Company }) => (
     <TableRow key={company.id}>
       <TableCell className="font-medium">{company.companyName}</TableCell>
@@ -150,6 +189,10 @@ export default function ManageCompaniesPage() {
                     Move to Pending
                 </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-red-600" onClick={() => void deleteCompanyPermanently(company)}>
+              Delete Permanently
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>

@@ -7,7 +7,9 @@ import {
   query,
   where,
   doc,
+  getDocs,
   updateDoc,
+  writeBatch,
   serverTimestamp,
 } from 'firebase/firestore';
 import {
@@ -95,6 +97,55 @@ export default function VolunteersPage() {
       description: `Volunteer has been moved to ${status}.`,
     });
   };
+
+  const deleteVolunteerPermanently = async (volunteer: Volunteer) => {
+    if (!db) return;
+
+    const confirmed = window.confirm(
+      `Permanently delete ${volunteer.fullName}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const roomAssignmentsRef = collection(db, 'jobFairs', 'main-job-fair-2024', 'roomAssignments');
+      const roomAssignmentsQuery = query(roomAssignmentsRef, where('volunteerId', '==', volunteer.id));
+      const roomAssignmentsSnapshot = await getDocs(roomAssignmentsQuery);
+
+      const batch = writeBatch(db);
+      const volunteerRef = doc(db, 'volunteers', volunteer.id);
+      const profileRef = doc(db, 'userProfiles', volunteer.id);
+
+      batch.delete(volunteerRef);
+      batch.delete(profileRef);
+
+      roomAssignmentsSnapshot.forEach((assignmentDoc) => {
+        batch.update(assignmentDoc.ref, {
+          volunteerId: '',
+          volunteerName: '',
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      await batch.commit();
+
+      toast({
+        title: 'Volunteer Deleted',
+        description: `${volunteer.fullName} has been permanently removed.`,
+      });
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: `volunteers/${volunteer.id}`,
+        operation: 'delete',
+        requestResourceData: { volunteerId: volunteer.id },
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      toast({
+        title: 'Delete Failed',
+        description: 'Could not permanently delete this volunteer.',
+        variant: 'destructive',
+      });
+    }
+  };
   
   const handleAssignRole = (volunteer: Volunteer) => {
     setSelectedVolunteer(volunteer);
@@ -175,6 +226,10 @@ export default function VolunteersPage() {
                 </DropdownMenuItem>
               </>
             )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-red-600" onClick={() => void deleteVolunteerPermanently(volunteer)}>
+              Delete Permanently
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>
