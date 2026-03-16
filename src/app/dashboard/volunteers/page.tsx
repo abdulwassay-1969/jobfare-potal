@@ -102,7 +102,7 @@ export default function VolunteersPage() {
     if (!db) return;
 
     const confirmed = window.confirm(
-      `Permanently delete ${volunteer.fullName}? This cannot be undone.`
+      `Remove ${volunteer.fullName} from the portal? They can log in later and return to pending approval.`
     );
     if (!confirmed) return;
 
@@ -118,6 +118,27 @@ export default function VolunteersPage() {
       const batch = writeBatch(db);
       const volunteerRef = doc(db, 'volunteers', volunteer.id);
       const profileRef = doc(db, 'userProfiles', volunteer.id);
+      const archivedRef = doc(db, 'archivedUsers', volunteer.id);
+
+      batch.set(archivedRef, {
+        uid: volunteer.id,
+        role: 'volunteer',
+        archivedAt: serverTimestamp(),
+        userProfileData: {
+          id: volunteer.id,
+          email: volunteer.email,
+          name: volunteer.fullName,
+          roles: ['volunteer'],
+        },
+        roleProfileData: {
+          ...volunteer,
+          status: 'pending',
+          isPresent: false,
+          presentAt: null,
+          assignedRole: null,
+          assignedShift: null,
+        },
+      });
 
       batch.delete(volunteerRef);
       batch.delete(profileRef);
@@ -154,8 +175,8 @@ export default function VolunteersPage() {
       await batch.commit();
 
       toast({
-        title: 'Volunteer Deleted',
-        description: `${volunteer.fullName} has been permanently removed.`,
+        title: 'Volunteer Removed',
+        description: `${volunteer.fullName} has been archived and removed from active access.`,
       });
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
@@ -253,7 +274,7 @@ export default function VolunteersPage() {
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-red-600" onClick={() => void deleteVolunteerPermanently(volunteer)}>
-              Delete Permanently
+              Remove Access
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

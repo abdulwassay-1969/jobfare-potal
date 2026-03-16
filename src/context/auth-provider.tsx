@@ -4,7 +4,7 @@
 
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, writeBatch, Firestore, onSnapshot, Unsubscribe } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, writeBatch, Firestore, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { useAuth as useFirebaseAuth, useFirestore } from '@/firebase';
 import type { UserRole } from '@/lib/types';
 import { hasAdminClaim } from '@/lib/security';
@@ -72,6 +72,67 @@ async function ensureAdminProfile(db: Firestore, user: User) {
     // Admin setup might be restricted during very first login attempt; fallback to silent handling
     console.warn("Main Admin initialization notice (safe to ignore if dashboard loads): ", error);
   }
+}
+
+async function restoreArchivedAccount(db: Firestore, user: User) {
+  const archivedRef = doc(db, 'archivedUsers', user.uid);
+  const archivedSnapshot = await getDoc(archivedRef);
+
+  if (!archivedSnapshot.exists()) {
+    return false;
+  }
+
+  const archivedData = archivedSnapshot.data();
+  const restoredRole = archivedData.role as UserRole | null;
+
+  if (!restoredRole) {
+    return false;
+  }
+
+  const userProfileRef = doc(db, 'userProfiles', user.uid);
+  const roleProfileRef = doc(db, getCollectionNameForRole(restoredRole), user.uid);
+
+  const baseUserProfile = archivedData.userProfileData || {};
+  const baseRoleProfile = archivedData.roleProfileData || {};
+
+  const restoredRoleProfile = {
+    ...baseRoleProfile,
+    id: user.uid,
+    userProfileId: user.uid,
+    email: user.email ?? baseRoleProfile.email ?? null,
+    status: 'pending',
+    updatedAt: serverTimestamp(),
+    restoredAt: serverTimestamp(),
+    restoredFromArchive: true,
+  } as Record<string, unknown>;
+
+  if (restoredRole === 'volunteer') {
+    restoredRoleProfile.isPresent = false;
+    restoredRoleProfile.presentAt = null;
+    restoredRoleProfile.assignedRole = null;
+    restoredRoleProfile.assignedShift = null;
+  }
+
+  if (restoredRole === 'student') {
+    restoredRoleProfile.isPresent = false;
+    restoredRoleProfile.presentAt = null;
+  }
+
+  const batch = writeBatch(db);
+  batch.set(userProfileRef, {
+    ...baseUserProfile,
+    id: user.uid,
+    email: user.email ?? baseUserProfile.email ?? null,
+    name: baseUserProfile.name || user.displayName || 'User',
+    roles: [restoredRole],
+    updatedAt: serverTimestamp(),
+    restoredAt: serverTimestamp(),
+  }, { merge: true });
+  batch.set(roleProfileRef, restoredRoleProfile, { merge: true });
+  batch.delete(archivedRef);
+  await batch.commit();
+
+  return true;
 }
 
 /**
@@ -150,11 +211,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         if (!userProfileDoc.exists()) {
-          setRole(null);
-          setProfileStatus(null);
-          setProfileName(user.displayName || 'User');
-          setAccountState('missing-profile');
-          setProfileLoading(false);
+          const recoverDeletedProfile = async () => {
+            let restored = false;
+            try {
+              restored = await restoreArchivedAccount(db, user);
+              if (!restored) {
+                setRole(null);
+                setProfileStatus(null);
+                setProfileName(user.displayName || 'User');
+                setAccountState('missing-profile');
+              } else {
+                setAccountState('active');
+              }
+            } catch (error) {
+              console.error('Error restoring archived account:', error);
+              setRole(null);
+              setProfileStatus(null);
+              setProfileName(user.displayName || 'User');
+              setAccountState('missing-profile');
+            } finally {
+              if (!restored) {
+                setProfileLoading(false);
+              }
+            }
+          };
+
+          void recoverDeletedProfile();
           return;
         }
 

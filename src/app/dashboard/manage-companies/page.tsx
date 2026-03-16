@@ -98,14 +98,31 @@ export default function ManageCompaniesPage() {
     if (!db) return;
 
     const confirmed = window.confirm(
-      `Permanently delete ${company.companyName}? This cannot be undone.`
+      `Remove ${company.companyName} from the portal? They can log in later and return to pending approval.`
     );
     if (!confirmed) return;
 
     const batch = writeBatch(db);
     const companyRef = doc(db, 'companies', company.id);
     const profileRef = doc(db, 'userProfiles', company.id);
+    const archivedRef = doc(db, 'archivedUsers', company.id);
     const roomAssignmentRef = doc(db, 'jobFairs', 'main-job-fair-2024', 'roomAssignments', company.id);
+
+    batch.set(archivedRef, {
+      uid: company.id,
+      role: 'company',
+      archivedAt: serverTimestamp(),
+      userProfileData: {
+        id: company.id,
+        email: company.email,
+        name: company.companyName,
+        roles: ['company'],
+      },
+      roleProfileData: {
+        ...company,
+        status: 'pending',
+      },
+    });
 
     batch.delete(companyRef);
     batch.delete(profileRef);
@@ -114,8 +131,8 @@ export default function ManageCompaniesPage() {
     try {
       await batch.commit();
       toast({
-        title: 'Company Deleted',
-        description: `${company.companyName} has been permanently removed.`,
+        title: 'Company Removed',
+        description: `${company.companyName} has been archived and removed from active access.`,
       });
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
@@ -191,7 +208,7 @@ export default function ManageCompaniesPage() {
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-red-600" onClick={() => void deleteCompanyPermanently(company)}>
-              Delete Permanently
+              Remove Access
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -111,7 +111,7 @@ export default function ManageStudentsPage() {
     if (!db) return;
 
     const confirmed = window.confirm(
-      `Permanently delete ${student.fullName}? This cannot be undone.`
+      `Remove ${student.fullName} from the portal? They can log in later and return to pending approval.`
     );
     if (!confirmed) return;
 
@@ -123,6 +123,25 @@ export default function ManageStudentsPage() {
       const batch = writeBatch(db);
       const studentRef = doc(db, 'students', student.id);
       const profileRef = doc(db, 'userProfiles', student.id);
+      const archivedRef = doc(db, 'archivedUsers', student.id);
+
+      batch.set(archivedRef, {
+        uid: student.id,
+        role: 'student',
+        archivedAt: serverTimestamp(),
+        userProfileData: {
+          id: student.id,
+          email: student.email,
+          name: student.fullName,
+          roles: ['student'],
+        },
+        roleProfileData: {
+          ...student,
+          status: 'pending',
+          isPresent: false,
+          presentAt: null,
+        },
+      });
 
       batch.delete(studentRef);
       batch.delete(profileRef);
@@ -133,8 +152,8 @@ export default function ManageStudentsPage() {
       await batch.commit();
 
       toast({
-        title: 'Student Deleted',
-        description: `${student.fullName} has been permanently removed.`,
+        title: 'Student Removed',
+        description: `${student.fullName} has been archived and removed from active access.`,
       });
     } catch (serverError) {
       const permissionError = new FirestorePermissionError({
@@ -210,7 +229,7 @@ export default function ManageStudentsPage() {
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-red-600" onClick={() => void deleteStudentPermanently(student)}>
-              Delete Permanently
+              Remove Access
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
