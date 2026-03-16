@@ -3,15 +3,18 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { signOut } from "firebase/auth";
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarInset } from "@/components/ui/sidebar"
 import { Header } from "@/components/dashboard/header"
 import { SidebarNav } from "@/components/dashboard/sidebar-nav"
 import { GraduationCap } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth";
 import { EmailVerificationMessage } from "@/components/dashboard/dashboards/status-messages";
+import { useAuth as useFirebaseAuth } from "@/firebase";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading, role, profileStatus } = useAuth();
+  const { user, loading, role, profileStatus, accountState } = useAuth();
+  const firebaseAuth = useFirebaseAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -22,19 +25,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.push("/");
       return;
     }
+
+    if (accountState === 'missing-profile') {
+      const handleDeletedAccount = async () => {
+        try {
+          if (firebaseAuth.currentUser) {
+            await signOut(firebaseAuth);
+          }
+        } finally {
+          router.replace('/login?account=removed');
+        }
+      };
+
+      void handleDeletedAccount();
+      return;
+    }
     
     // Check for roles
     if (!role) {
       router.push("/");
     }
-  }, [user, loading, role, router]);
+  }, [user, loading, role, router, accountState, firebaseAuth]);
 
   if (loading || !user || user.isAnonymous || !role) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <GraduationCap className="h-12 w-12 text-primary animate-pulse" />
-          <p className="text-muted-foreground font-medium">Securing your session...</p>
+          <p className="text-muted-foreground font-medium">
+            {accountState === 'missing-profile' ? 'Recovering your account session...' : 'Securing your session...'}
+          </p>
         </div>
       </div>
     );

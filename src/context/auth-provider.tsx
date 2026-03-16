@@ -15,6 +15,7 @@ interface AuthContextType {
   loading: boolean;
   profileStatus: 'pending' | 'approved' | 'rejected' | null;
   profileName: string | null;
+  accountState: 'active' | 'missing-profile';
 }
 
 export const AuthContext = createContext<AuthContextType>({
@@ -23,6 +24,7 @@ export const AuthContext = createContext<AuthContextType>({
   loading: true,
   profileStatus: null,
   profileName: null,
+  accountState: 'active',
 });
 
 /**
@@ -90,6 +92,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [role, setRole] = useState<UserRole | null>(null);
   const [profileStatus, setProfileStatus] = useState<AuthContextType['profileStatus']>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [accountState, setAccountState] = useState<AuthContextType['accountState']>('active');
   const [profileLoading, setProfileLoading] = useState(true);
 
   // 1. Core Authentication Listener
@@ -117,6 +120,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setRole(null);
       setProfileStatus(null);
       setProfileName(null);
+      setAccountState('active');
       setProfileLoading(false);
       return;
     }
@@ -133,6 +137,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setRole('admin');
           setProfileStatus('approved');
           setProfileName('Main Administrator');
+          setAccountState('active');
           setProfileLoading(false);
         });
         return;
@@ -148,11 +153,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setRole(null);
           setProfileStatus(null);
           setProfileName(user.displayName || 'User');
+          setAccountState('missing-profile');
           setProfileLoading(false);
           return;
         }
 
         const userData = userProfileDoc.data();
+        setAccountState('active');
         const currentRole = (userData.roles as UserRole[])?.[0] || null;
         setRole(currentRole);
 
@@ -197,7 +204,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const loading = authLoading || profileLoading;
 
   return (
-    <AuthContext.Provider value={{ user, role, loading, profileStatus, profileName }}>
+    <AuthContext.Provider value={{ user, role, loading, profileStatus, profileName, accountState }}>
       {children}
     </AuthContext.Provider>
   );

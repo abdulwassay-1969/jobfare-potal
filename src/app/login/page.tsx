@@ -16,7 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail, signOut } from 'firebase/auth';
 import { useAuth as useFirebaseAuth } from '@/firebase';
@@ -67,12 +67,14 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 export default function LoginPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
   const firebaseAuth = useFirebaseAuth();
-  const { user, role, loading: authLoading, profileName } = useAuth();
+  const { user, role, loading: authLoading, profileName, accountState } = useAuth();
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
+  const accountRemoved = searchParams.get('account') === 'removed';
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
@@ -198,6 +200,15 @@ export default function LoginPage() {
                 <AlertDescription>{configError}</AlertDescription>
               </Alert>
             )}
+            {accountRemoved && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Portal Account Removed</AlertTitle>
+                <AlertDescription>
+                  Your portal profile was removed by an administrator. Please contact admin or register again if access is still needed.
+                </AlertDescription>
+              </Alert>
+            )}
             {user && !user.isAnonymous && role && (
               <Alert>
                 <LayoutDashboard className="h-4 w-4" />
@@ -215,6 +226,15 @@ export default function LoginPage() {
                       Switch Account
                     </Button>
                   </div>
+                </AlertDescription>
+              </Alert>
+            )}
+            {user && !user.isAnonymous && !role && accountState === 'missing-profile' && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Account Access Removed</AlertTitle>
+                <AlertDescription>
+                  This login is no longer linked to an active portal profile. Please sign out and use a valid account.
                 </AlertDescription>
               </Alert>
             )}
