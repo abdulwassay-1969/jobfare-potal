@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 export function VolunteerAssignmentCard({ volunteerId }: { volunteerId: string }) {
   const db = useFirestore();
   const { toast } = useToast();
+  const [isCheckingIn, setIsCheckingIn] = React.useState(false);
 
   // 1. Find the room assignment for this volunteer
   const assignmentsQuery = useMemoFirebase(() => {
@@ -38,33 +39,35 @@ export function VolunteerAssignmentCard({ volunteerId }: { volunteerId: string }
   const isLoading = assignmentLoading || (assignment && companyLoading);
   
   const handleCheckIn = async () => {
-    if (!db || !assignment) return;
+    if (!db || !assignment || isCheckingIn) return;
+    setIsCheckingIn(true);
     const assignmentRef = doc(db, 'jobFairs', 'main-job-fair-2024', 'roomAssignments', assignment.id);
     const dataToUpdate = {
       checkInStatus: true,
       checkInTime: serverTimestamp(),
     };
-    
-    updateDoc(assignmentRef, dataToUpdate)
-        .then(() => {
-            toast({
-                title: "Checked In!",
-                description: `${assignment.companyName} is now marked as checked in.`,
-            });
-        })
-        .catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-                path: assignmentRef.path,
-                operation: 'update',
-                requestResourceData: dataToUpdate,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            toast({
-                title: 'Check-in Failed',
-                description: 'Could not update status. You may not have permission.',
-                variant: 'destructive',
-            });
-        });
+
+    try {
+      await updateDoc(assignmentRef, dataToUpdate);
+      toast({
+        title: 'Checked In!',
+        description: `${assignment.companyName} is now marked as checked in.`,
+      });
+    } catch (serverError) {
+      const permissionError = new FirestorePermissionError({
+        path: assignmentRef.path,
+        operation: 'update',
+        requestResourceData: dataToUpdate,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      toast({
+        title: 'Check-in Failed',
+        description: 'Could not update status. You may not have permission.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCheckingIn(false);
+    }
   };
 
 
@@ -74,7 +77,7 @@ export function VolunteerAssignmentCard({ volunteerId }: { volunteerId: string }
               <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <MapPin className="h-5 w-5" />
-                    Your Assignment
+                    Assigned Company
                   </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -97,12 +100,12 @@ export function VolunteerAssignmentCard({ volunteerId }: { volunteerId: string }
               <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <MapPin className="h-5 w-5" />
-                    Your Assignment
+                    Assigned Company
                   </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground text-center py-8">
-                    You have not been assigned to a company yet.
+                    You are not assigned yet. Please check back soon or contact your supervisor.
                 </p>
               </CardContent>
           </Card>
@@ -141,8 +144,9 @@ export function VolunteerAssignmentCard({ volunteerId }: { volunteerId: string }
               Company Checked In
             </div>
           ) : (
-            <Button onClick={handleCheckIn}>
-              <UserCheck className="mr-2 h-4 w-4" /> Mark Company as Checked In
+            <Button onClick={handleCheckIn} disabled={isCheckingIn}>
+              <UserCheck className="mr-2 h-4 w-4" />
+              {isCheckingIn ? 'Checking In...' : 'Mark Company as Checked In'}
             </Button>
           )}
         </CardFooter>

@@ -16,17 +16,20 @@ export function VolunteerDashboard() {
   return (
     <div className="space-y-6">
       <BreakBanner />
-      
-      <h1 className="text-3xl font-bold">Welcome, {name}!</h1>
-      <p className="text-muted-foreground">
-        Thank you for helping make the C@SE Job Fair a success. Here is your assignment information.
-      </p>
+
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">Welcome, {name}!</h1>
+        <p className="text-muted-foreground max-w-3xl">
+          Thanks for supporting the C@SE Job Fair. Review your role, shift timing, and assigned company details below.
+        </p>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2">
         {user && <VolunteerRoleCard volunteerId={user.uid} />}
         {user && <VolunteerAssignmentCard volunteerId={user.uid} />}
         <ActionCard
           title="My Profile"
-          description="Keep your contact details up-to-date."
+          description="Update your contact information and personal details."
           href="/dashboard/profile"
           icon={<User className="w-7 h-7" />}
         />

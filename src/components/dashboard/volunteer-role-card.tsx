@@ -26,9 +26,9 @@ export function VolunteerRoleCard({ volunteerId }: { volunteerId: string }) {
           Your Role
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-4">
-        <div>
-          <p className="font-semibold">Assigned Role</p>
+      <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-md border bg-muted/30 p-4 space-y-1">
+          <p className="text-sm font-semibold">Assigned Role</p>
           {isLoading ? (
             <Skeleton className="h-6 w-32 mt-1" />
           ) : volunteer?.assignedRole ? (
@@ -37,9 +37,9 @@ export function VolunteerRoleCard({ volunteerId }: { volunteerId: string }) {
             <p className="text-sm text-muted-foreground">Not assigned yet.</p>
           )}
         </div>
-        <div>
-          <p className="font-semibold">Shift Time</p>
-           {isLoading ? (
+        <div className="rounded-md border bg-muted/30 p-4 space-y-1">
+          <p className="text-sm font-semibold">Shift Time</p>
+          {isLoading ? (
             <Skeleton className="h-6 w-24 mt-1" />
           ) : volunteer?.assignedShift ? (
             <p className="flex items-center gap-2 text-muted-foreground">
@@ -47,7 +47,7 @@ export function VolunteerRoleCard({ volunteerId }: { volunteerId: string }) {
               {volunteer.assignedShift}
             </p>
           ) : (
-             <p className="text-sm text-muted-foreground">To be announced.</p>
+            <p className="text-sm text-muted-foreground">To be announced.</p>
           )}
         </div>
       </CardContent>
