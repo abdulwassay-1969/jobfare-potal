@@ -35,10 +35,6 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/companies/$(userId));
     }
 
-    function isAssignedVolunteerForAssignment() {
-      return isSignedIn() && resource.data.volunteerId == request.auth.uid;
-    }
-
     function changedRoomAssignmentStatusFieldsOnly() {
       return request.resource.data.diff(resource.data).changedKeys().hasOnly([
         'checkInStatus',
@@ -135,7 +131,7 @@ service cloud.firestore {
     match /jobFairs/{jobFairId}/roomAssignments/{roomAssignmentId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
-      allow update: if isAssignedVolunteerForAssignment()
+      allow update: if isSignedIn()
         && changedRoomAssignmentStatusFieldsOnly()
         && (isValidVolunteerCheckInUpdate() || isValidVolunteerCompanyLeftUpdate());
     }
