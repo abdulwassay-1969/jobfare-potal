@@ -24,6 +24,17 @@ export function BreakBanner() {
     return null;
   }
 
+  // Check if this role is targeted
+  const targeted = eventState.targetRoles
+    ? (role === 'student' && eventState.targetRoles.student) ||
+      (role === 'company' && eventState.targetRoles.company) ||
+      (role === 'volunteer' && eventState.targetRoles.volunteer)
+    : true; // fallback: show to everyone if targetRoles not set (old data)
+
+  if (!targeted) {
+    return null;
+  }
+
   // Determine which message to show based on the user's role
   let roleMessage = "The event is currently on a break. Recruitment activities will resume shortly.";
   

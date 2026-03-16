@@ -75,6 +75,11 @@ export type Project = {
 
 export type EventState = {
     isBreakActive: boolean;
+    targetRoles: {
+        company: boolean;
+        student: boolean;
+        volunteer: boolean;
+    };
     messages: {
         company: string;
         student: string;
