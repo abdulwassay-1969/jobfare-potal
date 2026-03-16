@@ -182,6 +182,7 @@ export default function RoomAssignmentsPage() {
           companies={companies || []}
           volunteers={volunteers || []}
           existingAssignment={selectedAssignment}
+          assignments={assignments || []}
         />
       )}
     </div>

@@ -44,9 +44,10 @@ interface AssignRoomDialogProps {
   companies: Company[];
   volunteers: Volunteer[];
   existingAssignment: RoomAssignment | null;
+  assignments: RoomAssignment[];
 }
 
-export function AssignRoomDialog({ open, onOpenChange, companies, volunteers, existingAssignment }: AssignRoomDialogProps) {
+export function AssignRoomDialog({ open, onOpenChange, companies, volunteers, existingAssignment, assignments }: AssignRoomDialogProps) {
   const db = useFirestore();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -78,6 +79,22 @@ export function AssignRoomDialog({ open, onOpenChange, companies, volunteers, ex
       });
     }
   }, [existingAssignment, form]);
+
+  const assignedVolunteerMap = volunteers.reduce<Record<string, { companyName: string; assignmentId: string }>>((acc, volunteer) => {
+    const matchedAssignment = assignments.find((assignment) => {
+      const assignedIds = assignment.volunteerIds || (assignment.volunteerId ? [assignment.volunteerId] : []);
+      return assignedIds.includes(volunteer.id);
+    });
+
+    if (matchedAssignment) {
+      acc[volunteer.id] = {
+        companyName: matchedAssignment.companyName,
+        assignmentId: matchedAssignment.id,
+      };
+    }
+
+    return acc;
+  }, {});
 
   const onSubmit = (data: AssignmentFormValues) => {
     setLoading(true);
@@ -181,11 +198,17 @@ export function AssignRoomDialog({ open, onOpenChange, companies, volunteers, ex
                     {volunteers.length > 0 ? (
                       volunteers.map((volunteer) => {
                         const checked = field.value?.includes(volunteer.id) ?? false;
+                        const currentAssignment = assignedVolunteerMap[volunteer.id];
+                        const isAssignedElsewhere = !!currentAssignment && currentAssignment.assignmentId !== existingAssignment?.id;
 
                         return (
-                          <label key={volunteer.id} className="flex cursor-pointer items-start gap-3 rounded-md border p-3 hover:bg-muted/40">
+                          <label
+                            key={volunteer.id}
+                            className={`flex items-start gap-3 rounded-md border p-3 ${isAssignedElsewhere ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-muted/40'}`}
+                          >
                             <Checkbox
                               checked={checked}
+                              disabled={isAssignedElsewhere}
                               onCheckedChange={(isChecked) => {
                                 const currentValues = field.value || [];
                                 const nextValues = isChecked
@@ -199,6 +222,15 @@ export function AssignRoomDialog({ open, onOpenChange, companies, volunteers, ex
                               <p className="text-xs text-muted-foreground">
                                 {volunteer.department} • {volunteer.preferredRole}
                               </p>
+                              {isAssignedElsewhere ? (
+                                <p className="text-xs font-medium text-amber-600">
+                                  Already assigned to {currentAssignment.companyName}
+                                </p>
+                              ) : checked ? (
+                                <p className="text-xs font-medium text-primary">
+                                  Selected for this company
+                                </p>
+                              ) : null}
                             </div>
                           </label>
                         );
