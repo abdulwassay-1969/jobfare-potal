@@ -45,9 +45,12 @@ export function BreakBanner() {
   }
 
   return (
-    <Alert className="mb-6 border-primary bg-primary/5 shadow-md animate-in fade-in slide-in-from-top-4 duration-500">
-      <Coffee className="h-5 w-5 text-primary" />
-      <AlertTitle className="text-primary font-bold">Event on Break</AlertTitle>
+    <Alert
+      variant="destructive"
+      className="mb-6 bg-destructive/10 shadow-md animate-in fade-in slide-in-from-top-4 duration-500"
+    >
+      <Coffee className="h-5 w-5" />
+      <AlertTitle className="font-bold">Event on Break</AlertTitle>
       <AlertDescription className="text-foreground/80 font-medium">
         {roleMessage}
       </AlertDescription>
