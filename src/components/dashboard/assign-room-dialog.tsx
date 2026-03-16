@@ -100,6 +100,7 @@ export function AssignRoomDialog({ open, onOpenChange, companies, volunteers, ex
       roomNumber: data.roomNumber,
       jobFairId: jobFairId,
       checkInStatus: existingAssignment?.checkInStatus || false,
+      companyLeftStatus: existingAssignment?.companyLeftStatus || false,
     };
 
     if (existingAssignment) {

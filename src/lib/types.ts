@@ -168,6 +168,10 @@ export type RoomAssignment = {
     roomNumber: string;
     checkInStatus: boolean;
     checkInTime?: Timestamp;
+    checkInMarkedByVolunteerId?: string;
+    companyLeftStatus?: boolean;
+    companyLeftTime?: Timestamp;
+    companyLeftMarkedByVolunteerId?: string;
     createdAt: Timestamp;
     updatedAt?: Timestamp;
 }

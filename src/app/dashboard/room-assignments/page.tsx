@@ -83,7 +83,9 @@ export default function RoomAssignmentsPage() {
       </TableCell>
       <TableCell>{assignment.volunteerName || <span className="text-muted-foreground italic">Not Assigned</span>}</TableCell>
       <TableCell>
-        {assignment.checkInStatus ? (
+        {assignment.companyLeftStatus ? (
+          <Badge variant="destructive">Left</Badge>
+        ) : assignment.checkInStatus ? (
           <Badge variant="default" className="bg-green-500 hover:bg-green-600">Checked In</Badge>
         ) : (
           <Badge variant="secondary">Pending</Badge>
